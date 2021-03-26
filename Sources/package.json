@@ -1,0 +1,14 @@
+{
+  "name": "snet-sdk-swift",
+  "version": "1.0.0",
+  "description": "Dependancies for snet blockchain",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "singularitynet-platform-contracts": "file:../../../AGI_Phase2_NPM_Packages/singularitynet-platform-contracts"
+  }
+}
