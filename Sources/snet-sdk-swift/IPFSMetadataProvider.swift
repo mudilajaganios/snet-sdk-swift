@@ -78,9 +78,20 @@ public class IPFSMetadataProvider {
         }
         return firstly {
             contract["getOrganizationById"]!(orgIDBytes).call()
-        }.then({ [unowned self] (data) -> Promise<[String: Any]> in
+        }.then({ [weak self] (data) -> Promise<[String: Any]> in
             let orgMetadataURI = data["orgMetadataURI"] as? Data
-            return self._fetchMetadataFromIpfs(metadataURI: orgMetadataURI!)
+            let promise = self?._fetchMetadataFromIpfs(metadataURI: orgMetadataURI!)
+            if promise == nil {
+                return Promise { error in
+                    let genericError = NSError(
+                              domain: "snet-sdk",
+                              code: 0,
+                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            } else {
+                return promise!
+            }
         })
     }
     
@@ -99,9 +110,20 @@ public class IPFSMetadataProvider {
         
         return firstly {
             contract["getServiceRegistrationById"]!(orgIDBytes, serviceIDBytes).call()
-        }.then({ [unowned self] (data) -> Promise<[String: Any]> in
+        }.then({ [weak self] (data) -> Promise<[String: Any]> in
             let serviceMetadataURI = data["metadataURI"] as? Data
-            return self._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI!)
+            let promise = self?._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI!)
+            if promise == nil {
+                return Promise { error in
+                    let genericError = NSError(
+                              domain: "snet-sdk",
+                              code: 0,
+                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            } else {
+                return promise!
+            }
         })
     }
     
