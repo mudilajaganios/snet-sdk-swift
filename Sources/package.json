@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "singularitynet-platform-contracts": "file:../../../AGI_Phase2_NPM_Packages/singularitynet-platform-contracts"
+      "singularitynet-platform-contracts": "^0.3.4",
+      "singularitynet-token-contracts": "^2.0.1",
   }
 }
