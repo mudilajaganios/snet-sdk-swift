@@ -18,7 +18,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(name: "Web3", url: "https://github.com/Boilertalk/Web3.swift.git", from: "0.5.0"),
-        .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0"),
+        .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.

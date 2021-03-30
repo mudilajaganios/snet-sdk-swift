@@ -44,15 +44,14 @@ public class IPFSMetadataProvider {
     }
     
     func metadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
-//        let orgMetadata = self._fetchOrgMetadata(orgId: orgId)
-//        let serviceMetadata =
-            return self._fetchServiceMetadata(orgId: orgId, serviceId: serviceId)
+        let orgMetadata = self._fetchOrgMetadata(orgId: orgId)
+        let serviceMetadata = self._fetchServiceMetadata(orgId: orgId, serviceId: serviceId)
 
-//        return firstly {
-//            when(fulfilled: orgMetadata, serviceMetadata)
-//        }.then { (orgmetadata, servicemetadata) -> Promise<[String: Any]> in
-//           return self._enhanceServiceGroupDetails(serviceMetadata: servicemetadata, orgMetadata: orgmetadata)
-//        }
+        return firstly {
+            when(fulfilled: orgMetadata, serviceMetadata)
+        }.then { (orgmetadata, servicemetadata) -> Promise<[String: Any]> in
+           return self._enhanceServiceGroupDetails(serviceMetadata: servicemetadata, orgMetadata: orgmetadata)
+        }
     }
     
     func getOrgsList() -> Promise<[String: Any]> {
@@ -71,7 +70,7 @@ public class IPFSMetadataProvider {
     
     fileprivate func _fetchOrgMetadata(orgId: String) -> Promise<[String: Any]> {
         guard let orgIDBytes = orgId.data(using: .ascii),
-         let contract = self.registryContract else {
+              let contract = self.registryContract else {
             return Promise { error in
                 let genericError = NSError(
                           domain: "snet-sdk",
@@ -80,7 +79,6 @@ public class IPFSMetadataProvider {
                 error.reject(genericError)
             }
         }
-        
         return firstly {
             contract["getOrganizationById"]!(orgIDBytes).call()
         }.then({ [unowned self] (data) -> Promise<[String: Any]> in
@@ -90,8 +88,8 @@ public class IPFSMetadataProvider {
     }
     
     fileprivate func _fetchServiceMetadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
-        guard let orgIDBytes = orgId.data(using: .ascii),
-              let serviceIDBytes = serviceId.data(using: .ascii),
+        guard let orgIDBytes = orgId.data(using: .utf8),
+              let serviceIDBytes = serviceId.data(using: .utf8),
               let contract = self.registryContract else {
             return Promise { error in
                 let genericError = NSError(
@@ -105,18 +103,36 @@ public class IPFSMetadataProvider {
         return firstly {
             contract["getServiceRegistrationById"]!(orgIDBytes, serviceIDBytes).call()
         }.then({ [unowned self] (data) -> Promise<[String: Any]> in
-            let serviceMetadataURI = data["serviceMetadataURI"] as? Data
+            let serviceMetadataURI = data["metadataURI"] as? Data
             return self._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI!)
         })
     }
     
     fileprivate func _enhanceServiceGroupDetails(serviceMetadata: [String: Any], orgMetadata: [String: Any]) -> Promise<[String: Any]> {
         return Promise { result in
-            let orgGroups = orgMetadata.map { $0 }
-//            let updatedServiceGroups = serviceMetadata.map { (serviceGroup) -> [String: Any] in
-//
-//            }
-            result.fulfill([:])
+            guard let orgGroups = orgMetadata["groups"] as? [[String: Any]] else {
+                return result.fulfill(serviceMetadata)
+            }
+            
+            var mutableServiceMetadata = serviceMetadata
+            guard var mutableServiceGroups = serviceMetadata["groups"] as? [[String: Any]] else {
+                return result.fulfill(serviceMetadata)
+            }
+            
+            orgGroups.forEach { (group) in
+                if let serviceGroups = serviceMetadata["groups"] as? [[String: Any]], serviceGroups.count > 0 {
+                    for (index, serviceGroup) in serviceGroups.enumerated() {
+                        if let serviceGroupName = serviceGroup["group_name"] as? String,
+                           let orgGroupName = group["group_name"] as? String,
+                           serviceGroupName == orgGroupName {
+                            mutableServiceGroups[index]["payment"] = group["payment"]
+                        }
+                    }
+                }
+            }
+            
+            mutableServiceMetadata["groups"] = mutableServiceGroups
+            result.fulfill(mutableServiceMetadata)
         }
     }
     
@@ -151,17 +167,4 @@ public class IPFSMetadataProvider {
             }.resume()
         }
     }
-}
-
-extension String {
-  func toLengthOf(length:Int) -> String {
-            if length <= 0 {
-                return self
-            } else if let to = self.index(self.startIndex, offsetBy: length, limitedBy: self.endIndex) {
-                return self.substring(from: to)
-
-            } else {
-                return ""
-            }
-        }
 }
