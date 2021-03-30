@@ -10,22 +10,18 @@ let package = Package(
         .macOS(.v10_12)
     ],
     products: [
-        // Products define the executables and libraries a package produces, and make them visible to other packages.
-        .library(
-            name: "snet-sdk-swift",
-            targets: ["snet-sdk-swift"]),
+        .library(name: "snet-sdk-swift", targets: ["snet-sdk-swift", "snet_swift_pkg"])
     ],
     dependencies: [
-        // Dependencies declare other packages that this package depends on.
         .package(name: "Web3", url: "https://github.com/Boilertalk/Web3.swift.git", from: "0.5.0"),
         .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0")
     ],
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
+        .binaryTarget(name: "snet_swift_pkg", path: "SNetContractsBinary/snet_swift_pkg.xcframework"),
         .target(
             name: "snet-sdk-swift",
             dependencies: [
+                .target(name: "snet_swift_pkg"),
                 .product(name: "Web3", package: "Web3"),
                 .product(name: "Web3PromiseKit", package: "Web3"),
                 .product(name: "Web3ContractABI", package: "Web3"),
