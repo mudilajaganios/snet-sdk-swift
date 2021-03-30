@@ -10,6 +10,11 @@ import Web3
 import Web3ContractABI
 import Web3PromiseKit
 import PromiseKit
+#if os(macOS)
+import snet_swift_pkg_macOS
+#elseif os(iOS)
+import snet_swift_pkg_iOS
+#endif
 
 ///This class uses the HTTP API interface for the IPFS
 public class IPFSMetadataProvider {
@@ -25,17 +30,9 @@ public class IPFSMetadataProvider {
         self.networkId = networkId
         self.ipfsEndpoint = ipfsEndpoint
         
-        //Parsing Registry Networks
-        guard let networksFilePath = Bundle.module.path(forResource: "NetworksRegistry", ofType: "json"),
-              let networksDetails = JSONParserUtility.parse(from: networksFilePath) as? [String: Any],
-              let networks = networksDetails[networkId] as? [String: Any],
-              let networkAddress = networks["address"] as? String else {
-            return
-        }
-        
-        //Parsing ABI Contract JSON
-        guard let abiContractFilePath = Bundle.module.path(forResource: "ABIRegistry", ofType: "json") else { return }
-        guard let abiContractData = JSONParserUtility.data(from: abiContractFilePath) else {
+        let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId)
+    
+        guard let abiContractData = SNETContracts.shared.abiContract() else {
             return
         }
         
