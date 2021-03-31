@@ -18,8 +18,8 @@ let package = Package(
     ],
     targets: [
         .binaryTarget(name: "snet_swift_pkg",
-                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.1/snet_swift_pkg0.0.1.zip",
-                      checksum: "774f9ee91d73915c7868ffad26f4233b0af27ca6c02fe5b834cfccb808e731d1"),
+                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_swift_pkg0.0.2.zip",
+                      checksum: "2201704481acbd82151a6320d86af802e647d9b0cc054f0a25b4c86514aa42bb"),
         .target(
             name: "snet-sdk-swift",
             dependencies: [
