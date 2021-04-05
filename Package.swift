@@ -4,27 +4,27 @@
 import PackageDescription
 
 let package = Package(
-    name: "snet-sdk-swift",
+    name: "snet_sdk_swift",
     platforms: [
         .iOS(.v10),
         .macOS(.v10_12)
     ],
     products: [
-        .library(name: "snet-contracts", targets: ["snet-contracts"]),
-        .library(name: "snet-sdk-swift", targets: ["snet-sdk-swift", "snet_swift_pkg"])
+//        .library(name: "snet-contracts", type: .dynamic, targets: ["snet-contracts"]),
+        .library(name: "snet-sdk-swift", type: .dynamic, targets: ["snet-sdk-swift", "snet-contracts"])
     ],
     dependencies: [
         .package(name: "Web3", url: "https://github.com/Boilertalk/Web3.swift.git", from: "0.5.0"),
         .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0")
     ],
     targets: [
-        .binaryTarget(name: "snet_swift_pkg",
-                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_contracts.0.0.3.zip",
-                      checksum: "11e399ccdda016488ebe8b7d20200e045172d8a53585e923096b6fd7f2327240"),
+//        .binaryTarget(name: "snet_contracts",
+//                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_contracts.0.0.3.zip",
+//                      checksum: "9b7ac7028d431802dc0e4325bb94ea250c9bb1b50d89e4f440f96aadbe711519"),
         .target(
             name: "snet-sdk-swift",
             dependencies: [
-                .target(name: "snet_swift_pkg"),
+                .target(name: "snet-contracts"),
                 .product(name: "Web3", package: "Web3"),
                 .product(name: "Web3PromiseKit", package: "Web3"),
                 .product(name: "Web3ContractABI", package: "Web3"),
@@ -35,8 +35,7 @@ let package = Package(
         .target(name: "snet-contracts",
                 path: "Sources/snet-contracts",
                 resources: [
-                    .copy("Contracts/ABIRegistry.json"),
-                    .copy("Contracts/NetworksRegistry.json")
+                    .copy("Contracts")
                 ]),
         .testTarget(
             name: "snet-sdk-swiftTests",

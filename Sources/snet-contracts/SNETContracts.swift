@@ -13,20 +13,20 @@ public final class SNETContracts {
     public static let shared = SNETContracts()
     
     public func getNetworkAddress(networkId: String) -> String {
-        guard let networksFilePath = Bundle(for: SNETContracts.self).path(forResource: "NetworksRegistry", ofType: "json"),
+        guard let networksFilePath = Bundle.module.path(forResource: "Contracts/NetworksRegistry", ofType: "json"),
               let networksDetails = ParseUtility.parse(from: networksFilePath) as? [String: Any],
               let networks = networksDetails[networkId] as? [String: Any],
               let networkAddress = networks["address"] as? String else {
-            return ""
+            preconditionFailure("Couldn't find the Network registry")
         }
         return networkAddress
     }
     
     public func abiContract() -> Data? {
         //Parsing ABI Contract JSON
-        guard let abiContractFilePath = Bundle(for: SNETContracts.self).path(forResource: "ABIRegistry", ofType: "json") else { return nil }
+        guard let abiContractFilePath = Bundle.module.path(forResource: "Contracts/ABIRegistry", ofType: "json") else { return nil }
         guard let abiContractData = ParseUtility.data(from: abiContractFilePath) else {
-            return nil
+            preconditionFailure("Couldn't find the ABI registry")
         }
         return abiContractData
     }

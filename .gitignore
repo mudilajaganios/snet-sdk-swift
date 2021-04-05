@@ -91,6 +91,6 @@ fastlane/test_output
 */.DS_Store
 */*/.DS_Store
 
-*/*/Contracts/*.*
+#*/*/Contracts/*.*
 
 iOSInjectionProject/
