@@ -10,11 +10,11 @@ import Web3
 import Web3ContractABI
 import Web3PromiseKit
 import PromiseKit
-#if os(macOS)
-import snet_swift_pkg_macOS
-#elseif os(iOS)
-import snet_swift_pkg_iOS
-#endif
+//#if os(macOS)
+//import snet_swift_pkg_macOS
+//#else
+//import snet_swift_pkg_iOS
+//#endif
 
 ///This class uses the HTTP API interface for the IPFS
 public class IPFSMetadataProvider {
@@ -30,14 +30,14 @@ public class IPFSMetadataProvider {
         self.networkId = networkId
         self.ipfsEndpoint = ipfsEndpoint
         
-        let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId)
-    
-        guard let abiContractData = SNETContracts.shared.abiContract() else {
-            return
-        }
-        
-        self.ethereumAddress = EthereumAddress(hexString: networkAddress)
-        self.registryContract = try? self.web3Instance.eth.Contract(json: abiContractData, abiKey: nil, address: self.ethereumAddress)
+//        let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId)
+//
+//        guard let abiContractData = SNETContracts.shared.abiContract() else {
+//            return
+//        }
+//
+//        self.ethereumAddress = EthereumAddress(hexString: networkAddress)
+//        self.registryContract = try? self.web3Instance.eth.Contract(json: abiContractData, abiKey: nil, address: self.ethereumAddress)
     }
     
     func metadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {

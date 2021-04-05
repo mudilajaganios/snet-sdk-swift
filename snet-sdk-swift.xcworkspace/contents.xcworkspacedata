@@ -2,9 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:snet-swift-pkg-macOS/snet-swift-pkg-macOS.xcodeproj">
-   </FileRef>
-   <FileRef
-      location = "group:snet-swift-pkg-iOS/snet-swift-pkg-iOS.xcodeproj">
+      location = "group:test_client/test_client.xcodeproj">
    </FileRef>
 </Workspace>

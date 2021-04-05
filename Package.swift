@@ -10,6 +10,7 @@ let package = Package(
         .macOS(.v10_12)
     ],
     products: [
+        .library(name: "snet-contracts", targets: ["snet-contracts"]),
         .library(name: "snet-sdk-swift", targets: ["snet-sdk-swift", "snet_swift_pkg"])
     ],
     dependencies: [
@@ -18,8 +19,8 @@ let package = Package(
     ],
     targets: [
         .binaryTarget(name: "snet_swift_pkg",
-                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_swift_pkg0.0.2.zip",
-                      checksum: "2201704481acbd82151a6320d86af802e647d9b0cc054f0a25b4c86514aa42bb"),
+                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_contracts.0.0.3.zip",
+                      checksum: "11e399ccdda016488ebe8b7d20200e045172d8a53585e923096b6fd7f2327240"),
         .target(
             name: "snet-sdk-swift",
             dependencies: [
@@ -28,11 +29,15 @@ let package = Package(
                 .product(name: "Web3PromiseKit", package: "Web3"),
                 .product(name: "Web3ContractABI", package: "Web3"),
                 .product(name: "PromiseKit", package: "PromiseKit")
-            ],resources: [
-                .copy("Contracts/ABIRegistry.json"),
-                .copy("Contracts/NetworksRegistry.json")
-            ]
+            ],
+            path: "Sources/snet-sdk-swift"
         ),
+        .target(name: "snet-contracts",
+                path: "Sources/snet-contracts",
+                resources: [
+                    .copy("Contracts/ABIRegistry.json"),
+                    .copy("Contracts/NetworksRegistry.json")
+                ]),
         .testTarget(
             name: "snet-sdk-swiftTests",
             dependencies: ["snet-sdk-swift"]),
