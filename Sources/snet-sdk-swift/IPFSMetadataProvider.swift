@@ -11,36 +11,42 @@ import Web3ContractABI
 import Web3PromiseKit
 import PromiseKit
 import snet_contracts
-//#if os(macOS)
-//import snet_swift_pkg_macOS
-//#else
-//import snet_swift_pkg_iOS
-//#endif
 
-///This class uses the HTTP API interface for the IPFS
-public class IPFSMetadataProvider {
+/// This class uses the HTTP API interface for the IPFS
+public final class IPFSMetadataProvider {
     
-    private let web3Instance: Web3
-    private let networkId: String
-    private let ipfsEndpoint: String
-    private var registryContract: DynamicContract?
-    private var ethereumAddress: EthereumAddress?
+    private let _web3Instance: Web3
+    private let _ipfsEndpoint: String
+    private var _registryContract: DynamicContract?
     
+    
+    /// Initializes the Metadata provider
+    /// - Parameters:
+    ///   - web3: Requires the web3 instance
+    ///   - networkId: Requires the network id eg. "1"
+    ///   - ipfsEndpoint: Requires the IPFS endpoint eg. ipfs://singularity.io
     init(web3: Web3, networkId: String, ipfsEndpoint: String) {
-        self.web3Instance = web3
-        self.networkId = networkId
-        self.ipfsEndpoint = ipfsEndpoint
+        self._web3Instance = web3
+        self._ipfsEndpoint = ipfsEndpoint
         
-        let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId)
+        let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId, contractType: .registry)
 
-        guard let abiContractData = SNETContracts.shared.abiContract() else {
+        guard let abiContractData = SNETContracts.shared.abiContract(contractType: .registry) else {
             return
         }
 
-        self.ethereumAddress = EthereumAddress(hexString: networkAddress)
-        self.registryContract = try? self.web3Instance.eth.Contract(json: abiContractData, abiKey: nil, address: self.ethereumAddress)
+        let ethereumAddress = EthereumAddress(hexString: networkAddress)
+        self._registryContract = try? self._web3Instance.eth.Contract(json: abiContractData,
+                                                                      abiKey: nil,
+                                                                      address: ethereumAddress)
     }
     
+    
+    /// Fetches metadata for the given Org Id and Service Id
+    /// - Parameters:
+    ///   - orgId: Organization ID
+    ///   - serviceId: Service ID
+    /// - Returns: Promise consists of metadata dictionary
     func metadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
         let orgMetadata = self._fetchOrgMetadata(orgId: orgId)
         let serviceMetadata = self._fetchServiceMetadata(orgId: orgId, serviceId: serviceId)
@@ -52,8 +58,9 @@ public class IPFSMetadataProvider {
         }
     }
     
+    //TODO: Remove this method upon completion
     func getOrgsList() -> Promise<[String: Any]> {
-        guard let contract = self.registryContract else {
+        guard let contract = self._registryContract else {
             return Promise { error in
                 let genericError = NSError(
                           domain: "snet-sdk",
@@ -66,9 +73,13 @@ public class IPFSMetadataProvider {
         return contract["listOrganizations"]!().call()
     }
     
+    /// Pulls Organization metadata from IPFS interface
+    /// - Parameters:
+    ///   - orgId: Organization id provided by the client
+    /// - Returns: Metadata promise
     fileprivate func _fetchOrgMetadata(orgId: String) -> Promise<[String: Any]> {
         guard let orgIDBytes = orgId.data(using: .ascii),
-              let contract = self.registryContract else {
+              let contract = self._registryContract else {
             return Promise { error in
                 let genericError = NSError(
                           domain: "snet-sdk",
@@ -85,10 +96,16 @@ public class IPFSMetadataProvider {
         })
     }
     
+    
+    /// Pulls Service metadata from IPFS interface
+    /// - Parameters:
+    ///   - orgId: Organization id provided by the client
+    ///   - serviceId: Service id provided by the client
+    /// - Returns: Metadata promise
     fileprivate func _fetchServiceMetadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
         guard let orgIDBytes = orgId.data(using: .utf8),
               let serviceIDBytes = serviceId.data(using: .utf8),
-              let contract = self.registryContract else {
+              let contract = self._registryContract else {
             return Promise { error in
                 let genericError = NSError(
                     domain: "snet-sdk",
@@ -106,6 +123,12 @@ public class IPFSMetadataProvider {
         })
     }
     
+    
+    /// Enhancines the Service group details by adding Payment object acquired from the Organization group details
+    /// - Parameters:
+    ///   - serviceMetadata: Service metadata fetched from IPFS
+    ///   - orgMetadata: Organization metadata fetched from IPFS
+    /// - Returns: Updated Service metadata includes payment details
     fileprivate func _enhanceServiceGroupDetails(serviceMetadata: [String: Any], orgMetadata: [String: Any]) -> Promise<[String: Any]> {
         return Promise { result in
             guard let orgGroups = orgMetadata["groups"] as? [[String: Any]] else {
@@ -134,9 +157,13 @@ public class IPFSMetadataProvider {
         }
     }
     
+    
+    /// Pulls the metadata from the IPFS interface
+    /// - Parameter metadataURI: Metadata URI from (provided from the initializer/ default)
+    /// - Returns: Metadata promise
     fileprivate func _fetchMetadataFromIpfs(metadataURI: Data) -> Promise<[String: Any]> {
         return Promise { fetch in
-            var urlComponents = URLComponents(string: "\(DefaultConfig.ipfsEndpoint)/api/v0/cat")
+            var urlComponents = URLComponents(string: "\(self._ipfsEndpoint)/api/v0/cat")
             let utfString = String(data:metadataURI, encoding: .ascii)
             let shortenString = utfString!.toLengthOf(length: 7).replacingOccurrences(of: "\0", with: "")
             urlComponents?.queryItems = [

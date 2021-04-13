@@ -35,7 +35,8 @@ let package = Package(
         .target(name: "snet-contracts",
                 path: "Sources/snet-contracts",
                 resources: [
-                    .copy("Contracts")
+                    .copy("abi"),
+                    .copy("networks")
                 ]),
         .testTarget(
             name: "snet-sdk-swiftTests",
