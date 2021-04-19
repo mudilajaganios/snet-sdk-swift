@@ -13,8 +13,8 @@ import PromiseKit
 
 public final class ServiceClient {
     
-    private let _sdk: SnetSDK
-    private let _mpeContract: MPEContract
+    private unowned let _sdk: SnetSDK
+    private unowned let _mpeContract: MPEContract
     private let _options: [String: Any]
     private var _metadata: [String: Any]
     private var _group: [String: Any]
@@ -59,6 +59,14 @@ public final class ServiceClient {
         return _paymentChannels
     }
     
+    public var group: [String: Any] {
+        return self._group
+    }
+    
+    public var account: Account {
+        return self._sdk.account
+    }
+    
     //MARK: Public methods
     
     public func getChannelState() {
@@ -79,8 +87,8 @@ public final class ServiceClient {
         
     }
     
-    public func openChannel(amount: Double, expiry: Double) {
-        
+    public func openChannel(amount: BigUInt, expiry: BigUInt) {
+        let newChannelReceipt = self._mpeContract.openChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
     }
     
     public func depositAndOpenChannel(amount: Double, expiry: Double) {
@@ -150,6 +158,10 @@ public final class ServiceClient {
             enhancedGroup["payment_expiration_threshold"] = payment["payment_expiration_threshold"]
         }
         return enhancedGroup
+    }
+    
+    private func _getNewlyOpenedChannel() {
+        let openChannels = self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: nil)
     }
     
     private func _channelStateRequest() {

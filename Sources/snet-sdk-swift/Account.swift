@@ -15,13 +15,15 @@ import snet_contracts
 public final class Account {
     
     private let _web3Instance: Web3
-    private var _mpeContract: DynamicContract?
+    private unowned let _mpeContract: MPEContract
     private var _tokenContract: DynamicContract?
     private var _ethereumAddress: EthereumAddress!
+    private let _identity: PrivateKeyIdentity
     
-    init(web3: Web3, networkId: String, mpeContract: DynamicContract) {
+    init(web3: Web3, networkId: String, mpeContract: MPEContract, identity: PrivateKeyIdentity) {
         self._web3Instance = web3
         self._mpeContract = mpeContract
+        self._identity = identity
         
         let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId, contractType: .agitoken)
 
@@ -40,55 +42,91 @@ public final class Account {
     }
     
     public func balance() -> Promise<[String: Any]> {
-        let address = self.getAddress()
+        let address = self._identity.getAddress()
         return self._tokenContract!["balanceOf"]!(address).call()
     }
     
-//    public func escrowBalance() {
-//        let address = self.getAddress()
-//        return self._mpeContract.balance(address)
-//    }
+    public func escrowBalance() -> Promise<[String: Any]>? {
+        let address = self.getAddress()
+        return self._mpeContract.balance(of: address)
+    }
     
     public func depositToEscrowAccount(amountInCogs: BigUInt) {
-        
+        let alreadyApprovedAmount = self.allowance()
     }
     
     public func approveTransfer(amountInCogs: BigUInt) {
+        let amountString = amountInCogs.description
+        guard let contract = self._tokenContract,
+              let approveOperation = contract["approve"] else {
+            return
+        }
         
+        
+//        self.sendTransaction(toAddress: contract.address!, operation: approveOperation, operationArgs: [])
     }
     
-    public func allowance() {
+    public func allowance() -> Promise<[String: Any]> {
         let address = self.getAddress()
-//        return self._tokenContract!["allowance"]!(address, self._mpeContract!.address).call()
+        guard let mpeAddress = self._mpeContract.address else {
+            return Promise { error in
+                let genericError = NSError(
+                          domain: "snet-sdk",
+                          code: 0,
+                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            }
+        }
+        return self._tokenContract!["allowance"]!(address, mpeAddress).call()
     }
     
     public func withdrawFromEscrowAccount(amountInCogs: BigUInt) {
-//        return self._mpeContract.withdraw()
+        self._mpeContract.withdraw(account: self, amountInCogs: amountInCogs)
     }
     
-    public func getAddress() -> String {
-        return ""
+    public func getAddress() -> EthereumAddress {
+//        return ""
+        return self._identity.getAddress()
     }
     
-    public func getSignerAddress() -> String {
+    public func getSignerAddress() -> EthereumAddress {
         return self.getAddress()
     }
     
 //    public func signData(...data) {
 //    }
     
-//    public func sendTransaction(to, contractFn, contractFnArgs: ...String) {
-//    }
-    
-    private func _baseTransactionObject() {
+    public func sendTransaction(toAddress: EthereumAddress, operation: EthereumCall) -> Promise<EthereumData> {
+        let gasPricePromise = self._web3Instance.eth.gasPrice()
+        let estimatedGasPricePromise = self._web3Instance.eth.estimateGas(call: operation)
+        let noncePromise = self._transactionCount()
         
+        return firstly {
+            when(fulfilled: gasPricePromise, estimatedGasPricePromise, noncePromise)
+        }.then { (gasPrice, estimatedGasPrice, nonce) -> Promise<EthereumData> in
+            let address = self.getAddress()
+            guard let operationData = operation.data else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            }
+            let transacton = EthereumTransaction(nonce: nonce,
+                                                 gasPrice: gasPrice,
+                                                 gas: estimatedGasPrice,
+                                                 from: address,
+                                                 to: toAddress,
+                                                 value: operation.value,
+                                                 data: operationData)
+            return self._identity.sendTransaction(transactionObject: transacton)
+        }
     }
     
-    private func _getGas() {
-        
-    }
-    
-    private func _transactionCount() {
-        
+    private func _transactionCount() -> Promise<EthereumQuantity> {
+        let address = self.getAddress()
+        return self._web3Instance.eth.getTransactionCount(address: address, block: .latest)
     }
 }

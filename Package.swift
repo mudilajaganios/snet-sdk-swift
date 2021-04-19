@@ -5,12 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "snet_sdk_swift",
-    platforms: [
-        .iOS(.v10),
-        .macOS(.v10_12)
-    ],
+    platforms: [.macOS(.v10_12),
+                .iOS(.v11)],
     products: [
-//        .library(name: "snet-contracts", type: .dynamic, targets: ["snet-contracts"]),
         .library(name: "snet-sdk-swift", type: .dynamic, targets: ["snet-sdk-swift", "snet-contracts"])
     ],
     dependencies: [
@@ -18,9 +15,6 @@ let package = Package(
         .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0")
     ],
     targets: [
-//        .binaryTarget(name: "snet_contracts",
-//                      url: "https://github.com/singnet/snet-sdk-swift/releases/download/0.0.2/snet_contracts.0.0.3.zip",
-//                      checksum: "9b7ac7028d431802dc0e4325bb94ea250c9bb1b50d89e4f440f96aadbe711519"),
         .target(
             name: "snet-sdk-swift",
             dependencies: [

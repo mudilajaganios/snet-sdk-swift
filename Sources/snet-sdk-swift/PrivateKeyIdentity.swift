@@ -14,6 +14,7 @@ class PrivateKeyIdentity {
     
     private let _privateKey: String
     private let _web3: Web3
+    private var _defaultAccount: EthereumAddress!
     
     init(config: SDKConfig, web3: Web3) {
         self._web3 = web3
@@ -21,28 +22,30 @@ class PrivateKeyIdentity {
         self._setupAccount()
     }
     
-    public func getAddress() {
-//        return self._web3.eth.
+    public func getAddress() -> EthereumAddress {
+        return self._defaultAccount
     }
     
     public func signData(sha3Message: Any) {
+//        self._web3.eth
     }
     
-    public func sendTransaction(transactionObject: Any) {
-//        self._signTransaction(txObject: transactionObject)
-//        self._web3.eth.sendTransaction(transaction: <#T##EthereumTransaction#>)
-    }
-    
-    private func _signTransaction(txObject: Any) {
-//        EthereumSignedTransaction(nonce: 0, gasPrice: 0, gasLimit: 0, to: nil, value: 0, data: EthereumDat, v: <#T##EthereumQuantity#>, r: <#T##EthereumQuantity#>, s: <#T##EthereumQuantity#>, chainId: <#T##EthereumQuantity#>)
+    public func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
+        guard let privateKey = try? EthereumPrivateKey(hexPrivateKey: "0x" + self._privateKey),
+              let signedTransaction = try? transactionObject.sign(with: privateKey) else {
+            return Promise { error in
+                let genericError = NSError(
+                          domain: "snet-sdk",
+                          code: 0,
+                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            }
+        }
+        return self._web3.eth.sendRawTransaction(transaction: signedTransaction)
     }
     
     private func _setupAccount() {
-        firstly {
-            self._web3.eth.accounts()
-        }.done { (accounts) in
-//            let account = accounts[0].
-        }
-        
+        guard let privateKey = try? EthereumPrivateKey(hexPrivateKey: "0x" + self._privateKey) else { return }
+        self._defaultAccount = privateKey.address
     }
 }
