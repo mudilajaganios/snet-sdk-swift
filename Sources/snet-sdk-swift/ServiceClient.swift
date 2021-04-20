@@ -69,8 +69,8 @@ public final class ServiceClient {
     
     //MARK: Public methods
     
-    public func getChannelState() {
-        
+    public func getChannelState(channelId: String) {
+        self._channelStateRequest(channelId: channelId)
     }
     
     public func loadOpenChannels() {
@@ -91,8 +91,13 @@ public final class ServiceClient {
         let newChannelReceipt = self._mpeContract.openChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
     }
     
-    public func depositAndOpenChannel(amount: Double, expiry: Double) {
-        
+    public func depositAndOpenChannel(amount: BigUInt, expiry: BigUInt) {
+        firstly {
+            self._mpeContract.depositAndOpenChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
+        }.done { (transactionData) in
+            self._web3.eth.getTransactionReceipt(transactionHash: transactionData)
+//            self._getNewlyOpenedChannel()
+        }
     }
     
     public func getServiceDetails() -> [String: Any] {
@@ -117,8 +122,8 @@ public final class ServiceClient {
         return self._web3.eth.blockNumber()
     }
     
-    public func signData() {
-        
+    public func signData(dataString: String) {
+        self.account.signData(data: dataString)
     }
     
     
@@ -160,15 +165,15 @@ public final class ServiceClient {
         return enhancedGroup
     }
     
-    private func _getNewlyOpenedChannel() {
-        let openChannels = self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: nil)
+    private func _getNewlyOpenedChannel(receipent: EthereumData) {
+//        let openChannels = self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: receipent.ethereumValue().)
     }
     
-    private func _channelStateRequest() {
+    private func _channelStateRequest(channelId: String) {
         
     }
     
-    private func _channelStateRequestProperties() {
+    private func _channelStateRequestProperties(channelId: String) {
         
     }
     

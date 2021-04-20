@@ -11,12 +11,13 @@ import Web3ContractABI
 import Web3PromiseKit
 import PromiseKit
 import snet_contracts
+import CryptoSwift
 
 public final class Account {
     
     private let _web3Instance: Web3
     private unowned let _mpeContract: MPEContract
-    private var _tokenContract: DynamicContract?
+    private var _tokenContract: DynamicContract!
     private var _ethereumAddress: EthereumAddress!
     private let _identity: PrivateKeyIdentity
     
@@ -36,14 +37,14 @@ public final class Account {
         guard let tokenContract = try? self._web3Instance.eth.Contract(json: tokenContractData,
                                                                    abiKey: nil,
                                                                    address: ethereumAddress) else {
-            return
+            preconditionFailure("Unable to create token contract")
         }
         self._tokenContract = tokenContract
     }
     
     public func balance() -> Promise<[String: Any]> {
         let address = self._identity.getAddress()
-        return self._tokenContract!["balanceOf"]!(address).call()
+        return self._tokenContract["balanceOf"]!(address).call()
     }
     
     public func escrowBalance() -> Promise<[String: Any]>? {
@@ -52,18 +53,28 @@ public final class Account {
     }
     
     public func depositToEscrowAccount(amountInCogs: BigUInt) {
-        let alreadyApprovedAmount = self.allowance()
+        firstly {
+            self.allowance()
+        }.done { (allowance) in
+            
+        }
     }
     
-    public func approveTransfer(amountInCogs: BigUInt) {
+    public func approveTransfer(amountInCogs: BigUInt) -> Promise<EthereumData> {
         let amountString = amountInCogs.description
-        guard let contract = self._tokenContract,
-              let approveOperation = contract["approve"] else {
-            return
+        guard let approve = self._tokenContract["approve"],
+              let mpeAddress = self._mpeContract.address,
+              let approveOperation = approve(mpeAddress, amountString).createCall(),
+              let tokenContractAddress = self._tokenContract.address else {
+            return Promise { error in
+                let genericError = NSError(
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            }
         }
-        
-        
-//        self.sendTransaction(toAddress: contract.address!, operation: approveOperation, operationArgs: [])
+        return self.sendTransaction(toAddress: tokenContractAddress, operation: approveOperation)
     }
     
     public func allowance() -> Promise<[String: Any]> {
@@ -77,15 +88,14 @@ public final class Account {
                 error.reject(genericError)
             }
         }
-        return self._tokenContract!["allowance"]!(address, mpeAddress).call()
+        return self._tokenContract["allowance"]!(address, mpeAddress).call()
     }
     
-    public func withdrawFromEscrowAccount(amountInCogs: BigUInt) {
-        self._mpeContract.withdraw(account: self, amountInCogs: amountInCogs)
+    public func withdrawFromEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
+        return self._mpeContract.withdraw(account: self, amountInCogs: amountInCogs)
     }
     
     public func getAddress() -> EthereumAddress {
-//        return ""
         return self._identity.getAddress()
     }
     
@@ -93,8 +103,11 @@ public final class Account {
         return self.getAddress()
     }
     
-//    public func signData(...data) {
-//    }
+    public func signData(data: String) {
+        let sha3 = SHA3(variant: .sha256) //TODO: Confirm the SHA3 variant
+        let sha3Data = sha3.calculate(for: data.bytes)
+        self._identity.signData(sha3Message: sha3Data)
+    }
     
     public func sendTransaction(toAddress: EthereumAddress, operation: EthereumCall) -> Promise<EthereumData> {
         let gasPricePromise = self._web3Instance.eth.gasPrice()

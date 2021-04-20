@@ -26,8 +26,8 @@ class PrivateKeyIdentity {
         return self._defaultAccount
     }
     
-    public func signData(sha3Message: Any) {
-//        self._web3.eth
+    //TODO: Sign the message against private key
+    public func signData(sha3Message: Array<UInt8>) {
     }
     
     public func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {

@@ -72,11 +72,22 @@ public class SnetSDK {
         return self._account.allowance()
     }
     
-    public func openChannel() -> Promise<EthereumData> {
-        return firstly {
+    public func signData() {
+        firstly {
             self.createServiceClient(orgId: "6ce80f485dae487688c3a083688819bb", serviceId: "test_freecall")
-        }.then { (serviceClient) -> Promise<EthereumData> in
-            return self._mpeContract.openChannel(account: self.account, service: serviceClient, amountInCogs: 0, expiry: 0)
+        }.done { serviceClient in
+            serviceClient.signData(dataString: "Hello")
+        }
+    }
+    
+    public func openChannel() -> Promise<EthereumData> {
+        let clientPromise = self.createServiceClient(orgId: "6ce80f485dae487688c3a083688819bb", serviceId: "test_freecall")
+        let blockNumberPromise = self.web3Instance.eth.blockNumber()
+        return firstly {
+            when(fulfilled: clientPromise, blockNumberPromise)
+        }.then { (serviceClient, blockNumber) -> Promise<EthereumData> in
+            let expiry = blockNumber.quantity + 100
+            return self._mpeContract.openChannel(account: self.account, service: serviceClient, amountInCogs: BigUInt(10), expiry: expiry)
         }
     }
     
