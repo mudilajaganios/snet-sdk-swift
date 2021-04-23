@@ -11,7 +11,7 @@ import Web3ContractABI
 import Web3PromiseKit
 import snet_contracts
 
-public final class MPEContract {
+class MPEContract {
     
     private let _web3Instance: Web3
     private let _networkId: String
@@ -34,16 +34,16 @@ public final class MPEContract {
                                                                  address: self._ethereumAddress)
     }
     
-    public var contract: DynamicContract {
+    var contract: DynamicContract {
         return self._mpeContract!
     }
     
-    ///Public address of the MPE contract
-    public var address: EthereumAddress? {
+    ///address of the MPE contract
+    var address: EthereumAddress? {
         return self._mpeContract?.address
     }
     
-    public func balance(of address: EthereumAddress) -> Promise<[String: Any]> {
+    func balance(of address: EthereumAddress) -> Promise<[String: Any]> {
         guard let contract = self._mpeContract,
               let balances = contract["balances"] else {
             return Promise { error in
@@ -57,7 +57,7 @@ public final class MPEContract {
         return balances(address).call()
     }
     
-    public func deposit(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func deposit(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let deposit = contract["deposit"] else {
             return Promise { error in
@@ -78,7 +78,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func withdraw(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func withdraw(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let withdraw = contract["withdraw"] else {
             return Promise { error in
@@ -100,7 +100,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func openChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
+    func openChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let openChannel = contract["openChannel"] else {
             return Promise { error in
@@ -139,7 +139,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func depositAndOpenChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
+    func depositAndOpenChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
         //Approve the amount
         return firstly {
             //Check account allowance
@@ -202,7 +202,7 @@ public final class MPEContract {
         }
     }
     
-    public func channelAddFunds(account: Account, channelId: String, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func channelAddFunds(account: Account, channelId: String, amountInCogs: BigUInt) -> Promise<EthereumData> {
         self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
         
         guard let contract = self._mpeContract,
@@ -225,7 +225,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func channelExtend(account: Account, channelId: String, expiry: BigUInt) -> Promise<EthereumData> {
+    func channelExtend(account: Account, channelId: String, expiry: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let channelExtend = contract["channelExtend"] else {
             return Promise { error in
@@ -246,7 +246,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func channelExtendAndAddFunds(account: Account, channelId: String, expiry: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func channelExtendAndAddFunds(account: Account, channelId: String, expiry: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
         self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
         
         guard let contract = self._mpeContract,
@@ -269,7 +269,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func channelClaimTimeout(account: Account, channelId: String) -> Promise<EthereumData> {
+    func channelClaimTimeout(account: Account, channelId: String) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let channelClaimTimeout = contract["channelClaimTimeout"] else {
             return Promise { error in
@@ -290,7 +290,7 @@ public final class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    public func channels(channelId: String) -> Promise<[String: Any]>{
+    func channels(channelId: String) -> Promise<[String: Any]>{
         guard let contract = self._mpeContract,
               let channels = contract["channels"] else {
             return Promise { error in
@@ -304,41 +304,48 @@ public final class MPEContract {
         return channels(channelId).call()
     }
     
-    public func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: BigUInt? = nil) {
-        guard let fromBlock = startingBlockNumber ?? self._deploymentBlockNumber() else { return }
+    func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: EthereumQuantity? = nil) -> [PaymentChannel] {
+        var paymentChannels: [PaymentChannel] = []
+        guard let fromBlock = startingBlockNumber ?? self._deploymentBlockNumber() else {
+            return paymentChannels
+        }
         let address = account.getAddress()
         guard let paymentaddress = service.group["payment_address"] as? String,
-              let recipientAddress = EthereumAddress(hexString: paymentaddress) else { return }
-        guard let groupId = service.group["group_id_in_bytes"] as? Data else { return }
+              let recipientAddress = EthereumAddress(hexString: paymentaddress) else {
+            return paymentChannels
+        }
+        guard let groupId = service.group["group_id_in_bytes"] as? Data else {
+            return paymentChannels
+        }
         
         let options: [String: Any] = ["filter": [ "sender": address,
                                                   "recipient": recipientAddress,
                                                   "groupId": groupId],
                                       "fromBlock": fromBlock,
                                       "toBlock": "latest"]
-        guard let filterOptions = options as? ABIEncodable else {
-            return
+        guard let filterOptions = options as? ABIEncodable else  {
+            return paymentChannels
         }
         guard let contract = self._mpeContract,
-              let getPastEvents = contract["getPastEvents"] else {
-            return
+              let getPastEvents = contract["getPastEvents"] else  {
+            return paymentChannels
         }
         
         firstly {
             getPastEvents("ChannelOpen", filterOptions).call()
         }.done { channelsOpened in
-            let paymentChannels = channelsOpened.map {
-                if $0.key == "returnValues",
-                   let returnValues = $0.value as? [String: Any],
-                   let channelId = returnValues["channelId"] as? String {
-                    PaymentChannel(channelId: channelId,
-                                   web3: self._web3Instance,
-                                   account: account,
-                                   service: service,
-                                   mpeContract: self)
-                }
+            paymentChannels = channelsOpened.filter({ $0.key == "returnValues" }).map {
+                let returnValues = $0.value as? [String: Any]
+                let channelId = returnValues?["channelId"] as? String
+                
+                return PaymentChannel(channelId: channelId ?? "",
+                                      web3: self._web3Instance,
+                                      account: account,
+                                      service: service,
+                                      mpeContract: self)
             }
         }
+        return paymentChannels
     }
     
     //MARK: Private methods
@@ -355,8 +362,8 @@ public final class MPEContract {
         }
     }
     
-    private func _deploymentBlockNumber() -> BigUInt? {
-        var blockNumber: BigUInt?
+    private func _deploymentBlockNumber() -> EthereumQuantity? {
+        var blockNumber: EthereumQuantity?
         let networks = SNETContracts.shared.getNetworks(networkId: self._networkId, contractType: .mpe)
         guard let transactionHash = networks["transactionHash"] as? String else {
             return blockNumber
@@ -365,7 +372,7 @@ public final class MPEContract {
             self._web3Instance.eth.getTransactionReceipt(transactionHash: EthereumData(transactionHash.bytes))
         }.done { receiptObject in
             guard let receipt = receiptObject else { return }
-            blockNumber = receipt.blockNumber.quantity
+            blockNumber = receipt.blockNumber
         }
         return blockNumber
     }

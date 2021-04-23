@@ -12,7 +12,8 @@ let package = Package(
     ],
     dependencies: [
         .package(name: "Web3", url: "https://github.com/Boilertalk/Web3.swift.git", from: "0.5.0"),
-        .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0")
+        .package(url: "https://github.com/mxcl/PromiseKit.git", from: "6.0.0"),
+        .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.0.0")
     ],
     targets: [
         .target(
@@ -22,7 +23,8 @@ let package = Package(
                 .product(name: "Web3", package: "Web3"),
                 .product(name: "Web3PromiseKit", package: "Web3"),
                 .product(name: "Web3ContractABI", package: "Web3"),
-                .product(name: "PromiseKit", package: "PromiseKit")
+                .product(name: "PromiseKit", package: "PromiseKit"),
+                .product(name: "GRPC", package: "grpc-swift")
             ],
             path: "Sources/snet-sdk-swift"
         ),

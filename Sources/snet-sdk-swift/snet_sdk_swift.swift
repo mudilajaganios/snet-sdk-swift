@@ -17,6 +17,8 @@ public class SnetSDK {
     private let _mpeContract: MPEContract
     private let _account: Account
     
+    private var _paymentChannelManagementStrategy: Any?
+    
     public init(config: SDKConfig, metadataProvider: IPFSMetadataProvider? = nil) {
         let web3 = Web3(provider: Web3HttpProvider(rpcURL: config.web3Provider))
         self._web3 = web3
@@ -37,7 +39,16 @@ public class SnetSDK {
         return self._account
     }
     
-    public func createServiceClient(orgId: String, serviceId: String, groupName: String = "default_group", paymentChannelManagementStrategy: Any? = nil) -> Promise<ServiceClient> {
+    public var paymentChannelManagementStrategy: Any? {
+        get {
+            return self._paymentChannelManagementStrategy
+        }
+        set {
+            self._paymentChannelManagementStrategy = newValue
+        }
+    }
+    
+    func createServiceClient(orgId: String, serviceId: String, groupName: String = "default_group", paymentChannelManagementStrategy: Any? = nil) -> Promise<ServiceClient> {
         firstly {
             self._metadataProvider.metadata(orgId: orgId, serviceId: serviceId)
         }.then { (metadata) -> Promise<ServiceClient> in
@@ -60,37 +71,6 @@ public class SnetSDK {
         }
     }
     
-    public func getOrgsList() -> Promise<[String: Any]> {
-        return self._metadataProvider.getOrgsList()
-    }
-    
-    public func accountBalance() -> Promise<[String: Any]> {
-        return self._account.balance()
-    }
-    
-    public func accountAllowance() -> Promise<[String: Any]> {
-        return self._account.allowance()
-    }
-    
-    public func signData() {
-        firstly {
-            self.createServiceClient(orgId: "6ce80f485dae487688c3a083688819bb", serviceId: "test_freecall")
-        }.done { serviceClient in
-            serviceClient.signData(dataString: "Hello")
-        }
-    }
-    
-    public func openChannel() -> Promise<EthereumData> {
-        let clientPromise = self.createServiceClient(orgId: "6ce80f485dae487688c3a083688819bb", serviceId: "test_freecall")
-        let blockNumberPromise = self.web3Instance.eth.blockNumber()
-        return firstly {
-            when(fulfilled: clientPromise, blockNumberPromise)
-        }.then { (serviceClient, blockNumber) -> Promise<EthereumData> in
-            let expiry = blockNumber.quantity + 100
-            return self._mpeContract.openChannel(account: self.account, service: serviceClient, amountInCogs: BigUInt(10), expiry: expiry)
-        }
-    }
-    
     fileprivate func _serviceGroup(serviceMetadata: [String: Any], orgId: String, serviceId: String, groupName: String) -> [String: Any]? {
         guard let groups = serviceMetadata["groups"] as? [[String: Any]],
               let group = groups.first(where: { $0["group_name"] as! String == groupName })
@@ -98,5 +78,15 @@ public class SnetSDK {
             return nil
         }
         return group
+    }
+    
+    fileprivate func _constructStrategy(paymentChannelStrategy: Any?, concurrentCalls: Bool = true) -> Any {
+        guard let strategy = paymentChannelStrategy else {
+            guard let strategy = self._paymentChannelManagementStrategy else {
+                return DefaultPaymentStrategy(concurrentCalls: concurrentCalls)
+            }
+            return strategy
+        }
+        return strategy
     }
 }

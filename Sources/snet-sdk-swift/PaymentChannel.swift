@@ -37,19 +37,27 @@ class PaymentChannel {
         return self._state
     }
     
-    public func addFunds(amount: BigUInt) {
-        self._mpeContract.channelAddFunds(account: self._account, channelId: self._channelId, amountInCogs: amount)
+    public func addFunds(amount: BigUInt) -> Promise<EthereumData> {
+        return self._mpeContract.channelAddFunds(account: self._account, channelId: self._channelId, amountInCogs: amount)
     }
     
-    public func extend(expiry: BigUInt) {
-        self._mpeContract.channelExtend(account: self._account, channelId: self._channelId, expiry: expiry)
+    public func extend(expiry: BigUInt) -> Promise<EthereumData> {
+        return self._mpeContract.channelExtend(account: self._account, channelId: self._channelId, expiry: expiry)
     }
     
-    public func extendAndAddFunds(expiry: BigUInt, amount: BigUInt) {
-        self._mpeContract.channelExtendAndAddFunds(account: self._account, channelId: self._channelId, expiry: expiry, amountInCogs: amount)
+    public func extendAndAddFunds(expiry: BigUInt, amount: BigUInt) -> Promise<EthereumData> {
+        return self._mpeContract.channelExtendAndAddFunds(account: self._account, channelId: self._channelId, expiry: expiry, amountInCogs: amount)
     }
     
-    public func claimUnusedTokens() {
-        self._mpeContract.channelClaimTimeout(account: self._account, channelId: self._channelId)
+    public func claimUnusedTokens() -> Promise<EthereumData> {
+        return self._mpeContract.channelClaimTimeout(account: self._account, channelId: self._channelId)
+    }
+    
+    public func syncState() {
+        
+    }
+    
+    fileprivate func _currentChannelState() {
+        self._serviceClient.getChannelState(channelId: self._channelId)
     }
 }
