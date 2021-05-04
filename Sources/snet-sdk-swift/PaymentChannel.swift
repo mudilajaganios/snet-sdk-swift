@@ -54,10 +54,13 @@ class PaymentChannel {
     }
     
     public func syncState() {
-        
+        let latestChannelInfoOnBlockchain = self._mpeContract.channels(channelId: self._channelId)
+        let currentState = self._currentChannelState()
     }
     
-    fileprivate func _currentChannelState() {
+    fileprivate func _currentChannelState() -> (currentSignedAmount: BigUInt, nonce: BigUInt) {
         self._serviceClient.getChannelState(channelId: self._channelId)
+        let channelState = (currentSignedAmount: BigUInt(integerLiteral: 0), nonce: BigUInt(integerLiteral: 0))
+        return channelState
     }
 }

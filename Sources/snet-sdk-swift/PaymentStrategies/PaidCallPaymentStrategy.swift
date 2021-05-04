@@ -9,8 +9,8 @@ import Foundation
 import BigInt
 
 class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
+    
     func _generateSignature(channelId: String, nonce: BigUInt, amount: BigUInt) {
-        
     }
     
     override func _getPrice() {
@@ -18,6 +18,7 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
     }
     
     override func getPaymentMetadata() {
-        
+        let channel = self._selectChannel()
+//        guard channel.state["currentSignedAmount"]
     }
 }

@@ -9,4 +9,5 @@ import Foundation
 
 protocol PaymentChannelProtocol: class {
     func getPaymentMetadata()
+    func _getPrice()
 }
