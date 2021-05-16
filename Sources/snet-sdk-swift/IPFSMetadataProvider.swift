@@ -78,7 +78,7 @@ public final class IPFSMetadataProvider {
     ///   - orgId: Organization id provided by the client
     /// - Returns: Metadata promise
     fileprivate func _fetchOrgMetadata(orgId: String) -> Promise<[String: Any]> {
-        guard let orgIDBytes = orgId.data(using: .ascii),
+        guard let orgIDBytes = orgId.data(using: .utf8),
               let contract = self._registryContract else {
             return Promise { error in
                 let genericError = NSError(
@@ -91,8 +91,16 @@ public final class IPFSMetadataProvider {
         return firstly {
             contract["getOrganizationById"]!(orgIDBytes).call()
         }.then({ (data) -> Promise<[String: Any]> in
-            let orgMetadataURI = data["orgMetadataURI"] as? Data
-            return self._fetchMetadataFromIpfs(metadataURI: orgMetadataURI!)
+            guard let orgMetadataURI = data["orgMetadataURI"] as? Data else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
+                    error.reject(genericError)
+                }
+            }
+            return self._fetchMetadataFromIpfs(metadataURI: orgMetadataURI)
         })
     }
     
@@ -118,8 +126,16 @@ public final class IPFSMetadataProvider {
         return firstly {
             contract["getServiceRegistrationById"]!(orgIDBytes, serviceIDBytes).call()
         }.then({ (data) -> Promise<[String: Any]> in
-            let serviceMetadataURI = data["metadataURI"] as? Data
-            return self._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI!)
+            guard let serviceMetadataURI = data["metadataURI"] as? Data else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            }
+            return self._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI)
         })
     }
     

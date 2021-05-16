@@ -9,18 +9,15 @@ import Foundation
 
 class DefaultPaymentStrategy {
     
-    fileprivate let _concurrentCalls: Bool
+    fileprivate let _concurrentCalls: Int
     
-    init(concurrentCalls: Bool = true) {
+    init(concurrentCalls: Int = 1) {
         self._concurrentCalls = concurrentCalls
     }
     
     func getPaymentMetadata(serviceClient: ServiceClient) {
         let freecallPaymentStrategy = FreeCallPaymentStrategy(serviceClient: serviceClient)
         let isfreeCallAvailable = freecallPaymentStrategy.isFreeCallAvailable()
-        
-//        var <#name#> = <#value#>
-        
         
         if isfreeCallAvailable {
             freecallPaymentStrategy.getPaymentMetadata()

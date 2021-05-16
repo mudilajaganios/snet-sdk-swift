@@ -53,14 +53,34 @@ class PaymentChannel {
         return self._mpeContract.channelClaimTimeout(account: self._account, channelId: self._channelId)
     }
     
-    public func syncState() {
+    public func syncState() -> Promise<PaymentChannel> {
         let latestChannelInfoOnBlockchain = self._mpeContract.channels(channelId: self._channelId)
-        let currentState = self._currentChannelState()
+        guard let currentState = self._currentChannelState() else {
+            return Promise { error in
+                let genericError = NSError(
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            }
+        }
+        self._state["nonce"] = currentState.nonce
+        self._state["currentNonce"] = currentState.nonce
+        self._state["expiry"] = 0
+        self._state["amountDeposited"] = 0
+        self._state["currentSignedAmount"] = 0
+        self._state["availableAmount"] = 0
+        
+        return Promise { state in
+            state.fulfill(self)
+        }
     }
     
-    fileprivate func _currentChannelState() -> (currentSignedAmount: BigUInt, nonce: BigUInt) {
-        self._serviceClient.getChannelState(channelId: self._channelId)
-        let channelState = (currentSignedAmount: BigUInt(integerLiteral: 0), nonce: BigUInt(integerLiteral: 0))
+    fileprivate func _currentChannelState() -> (currentSignedAmount: BigUInt, nonce: BigUInt)? {
+        guard let channelStateReply = self._serviceClient.getChannelState(channelId: self._channelId) else { return nil }
+        let nonce = channelStateReply.currentNonce
+        let currentSignedAmount = channelStateReply.currentSignedAmount
+        let channelState = (currentSignedAmount: BigUInt(currentSignedAmount), nonce: BigUInt(nonce))
         return channelState
     }
 }

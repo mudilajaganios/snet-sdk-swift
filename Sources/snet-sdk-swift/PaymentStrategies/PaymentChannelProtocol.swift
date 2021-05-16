@@ -6,8 +6,9 @@
 //
 
 import Foundation
+import BigInt
 
-protocol PaymentChannelProtocol: class {
-    func getPaymentMetadata()
-    func _getPrice()
+protocol PaymentChannelProtocol {
+    func getPaymentMetadata() -> [[String: Any]]
+    func _getPrice() -> BigUInt
 }

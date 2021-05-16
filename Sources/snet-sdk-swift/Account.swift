@@ -47,7 +47,7 @@ public final class Account {
         return self._tokenContract["balanceOf"]!(address).call()
     }
     
-    public func escrowBalance() -> Promise<[String: Any]>? {
+    public func escrowBalance() -> Promise<[String: Any]> {
         let address = self.getAddress()
         return self._mpeContract.balance(of: address)
     }
@@ -129,10 +129,11 @@ public final class Account {
         return self.getAddress()
     }
     
-    public func signData(data: String) {
+    func sign(_ dataToSign: [DataToSign]) -> String {
         let sha3 = SHA3(variant: .sha256) //TODO: Confirm the SHA3 variant
-        let sha3Data = sha3.calculate(for: data.bytes)
+        let sha3Data = sha3.calculate(for: Array<UInt8>())
         self._identity.signData(sha3Message: sha3Data)
+        return ""
     }
     
     public func sendTransaction(toAddress: EthereumAddress, operation: EthereumCall) -> Promise<EthereumData> {

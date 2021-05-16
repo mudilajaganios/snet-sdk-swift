@@ -48,7 +48,12 @@ public class SnetSDK {
         }
     }
     
-    func createServiceClient(orgId: String, serviceId: String, groupName: String = "default_group", paymentChannelManagementStrategy: Any? = nil) -> Promise<ServiceClient> {
+    func createServiceClient(orgId: String,
+                             serviceId: String,
+                             groupName: String = "default_group",
+                             paymentChannelManagementStrategy: Any? = nil,
+                             options: [String: Any] = [:],
+                             concurrentCalls: Int = 1) -> Promise<ServiceClient> {
         firstly {
             self._metadataProvider.metadata(orgId: orgId, serviceId: serviceId)
         }.then { (metadata) -> Promise<ServiceClient> in
@@ -61,11 +66,12 @@ public class SnetSDK {
                     serviceClientPromise.reject(genericError)
                     return
                 }
+                let paymentStrategy = self._constructStrategy(paymentChannelStrategy: paymentChannelManagementStrategy, concurrentCalls: concurrentCalls)
                 let serviceClient = ServiceClient(sdk: self, orgId: orgId, serviceId: serviceId,
                                                   mpeContract: self._mpeContract,
                                                   metadata: metadata,
                                                   group: group,
-                                                  paymentChannelManagementStrategy: [:])
+                                                  paymentChannelManagementStrategy: paymentStrategy)
                 serviceClientPromise.fulfill(serviceClient)
             }
         }
@@ -80,7 +86,7 @@ public class SnetSDK {
         return group
     }
     
-    fileprivate func _constructStrategy(paymentChannelStrategy: Any?, concurrentCalls: Bool = true) -> Any {
+    fileprivate func _constructStrategy(paymentChannelStrategy: Any?, concurrentCalls: Int = 1) -> Any {
         guard let strategy = paymentChannelStrategy else {
             guard let strategy = self._paymentChannelManagementStrategy else {
                 return DefaultPaymentStrategy(concurrentCalls: concurrentCalls)

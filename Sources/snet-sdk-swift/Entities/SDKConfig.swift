@@ -1,6 +1,6 @@
 //
 //  SDKConfig.swift
-//  
+//  snet-sdk-swift
 //
 //  Created by Jagan Kumar Mudila on 24/03/2021.
 //
