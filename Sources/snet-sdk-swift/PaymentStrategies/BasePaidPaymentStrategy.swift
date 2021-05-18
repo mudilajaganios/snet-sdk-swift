@@ -7,6 +7,7 @@
 
 import Foundation
 import BigInt
+import Web3
 import PromiseKit
 
 class BasePaidPaymentStrategy: PaymentChannelProtocol {
@@ -21,48 +22,101 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
         self._callAllowance = callAllowance;
     }
     
-    func _selectChannel() -> PaymentChannel? {
+    func _selectChannel() -> Promise<PaymentChannel> {
         let account = self._serviceClient.account
-        self._serviceClient.loadOpenChannels()
-        self._serviceClient.updateChannelStates()
+        let loadOpenChannels = self._serviceClient.loadOpenChannels()
+        let updateChannelStates = self._serviceClient.updateChannelStates()
         let paymentChannels = self._serviceClient.paymentChannels
         let serviceCallPrice = self._getPrice()
-        let extendChannelFund = serviceCallPrice * self._callAllowance
         var mpeBalance: BigUInt = 0
-            
-        firstly {
-            account.escrowBalance()
-        }.done { escrowbalance in
-            mpeBalance = escrowbalance["balance"] as! BigUInt
-        }
         
+        return firstly {
+            when(fulfilled: loadOpenChannels, updateChannelStates, account.escrowBalance())
+        }.then { (_ ,_ , escrowbalance) -> Promise<PaymentChannel> in
+            guard let mpeBalance = escrowbalance.values.first as? BigUInt else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            }
+            
+            let defaultExpiration = self._serviceClient.defaultChannelExpiration()
+            let extendedExpiry = defaultExpiration + self._blockOffset
+            
+            let promise: Promise<PaymentChannel>?
+            
+            if paymentChannels.count < 1 {
+                if BigUInt.compare(serviceCallPrice, mpeBalance) == .orderedDescending {
+                    promise = self._serviceClient.depositAndOpenChannel(amount: serviceCallPrice, expiry: extendedExpiry)
+                } else {
+                    promise = self._serviceClient.openChannel(amount: serviceCallPrice, expiry: extendedExpiry)
+                }
+                
+                guard let promise = promise else {
+                    return Promise { error in
+                        let genericError = NSError(
+                            domain: "snet-sdk",
+                            code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                        error.reject(genericError)
+                    }
+                }
+                
+                return promise.then({ (channel) -> Promise<PaymentChannel> in
+                    return self._getselectedPaymentChannel(selectedPaymentChannel: channel)
+                })
+            } else {
+                guard let paymentChannel = paymentChannels.first else {
+                    return Promise { error in
+                        let genericError = NSError(
+                            domain: "snet-sdk",
+                            code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                        error.reject(genericError)
+                    }
+                }
+                return self._getselectedPaymentChannel(selectedPaymentChannel: paymentChannel)
+            }
+        }
+    }
+    
+    private func _getselectedPaymentChannel(selectedPaymentChannel: PaymentChannel) -> Promise<PaymentChannel> {
         let defaultExpiration = self._serviceClient.defaultChannelExpiration()
         let extendedExpiry = defaultExpiration + self._blockOffset
+        let serviceCallPrice = self._getPrice()
+        let extendChannelFund = serviceCallPrice * self._callAllowance
         
-        var selectedPaymentChannel: PaymentChannel?
+        let hasSufficientFunds = self._doesChannelHaveSufficientFunds(channel: selectedPaymentChannel, requiredAmount: serviceCallPrice)
+        let isValidChannel = self._isValidChannel(channel: selectedPaymentChannel, expiry: defaultExpiration)
         
-//        if paymentChannels.count < 1 {
-//            if BigUInt.compare(serviceCallPrice, mpeBalance) == .orderedDescending {
-//                selectedPaymentChannel = self._serviceClient.depositAndOpenChannel(amount: serviceCallPrice, expiry: extendedExpiry)
-//            } else {
-//                selectedPaymentChannel = self._serviceClient.openChannel(amount: serviceCallPrice, expiry: extendedExpiry)
-//            }
-//        } else {
-//            selectedPaymentChannel = paymentChannels.first
-//        }
-        
-        let hasSufficientFunds = self._doesChannelHaveSufficientFunds(channel: selectedPaymentChannel!, requiredAmount: serviceCallPrice)
-        let isValidChannel = self._isValidChannel(channel: selectedPaymentChannel!, expiry: defaultExpiration)
+        var promise: Promise<EthereumData>?
         
         if hasSufficientFunds && !isValidChannel {
-            selectedPaymentChannel?.extend(expiry: extendedExpiry)
+            promise = selectedPaymentChannel.extend(expiry: extendedExpiry)
         } else if !hasSufficientFunds && isValidChannel {
-            selectedPaymentChannel?.addFunds(amount: extendChannelFund)
+            promise = selectedPaymentChannel.addFunds(amount: extendChannelFund)
         } else if !hasSufficientFunds && !isValidChannel {
-            selectedPaymentChannel?.extendAndAddFunds(expiry: extendedExpiry, amount: extendChannelFund)
+            promise = selectedPaymentChannel.extendAndAddFunds(expiry: extendedExpiry, amount: extendChannelFund)
         }
         
-        return selectedPaymentChannel
+        guard let promise = promise else {
+            return Promise { error in
+                let genericError = NSError(
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            }
+        }
+        
+        return promise.then({(_) -> Promise<PaymentChannel> in
+            return Promise { channel in
+                channel.fulfill(selectedPaymentChannel)
+            }
+        })
     }
     
     func _doesChannelHaveSufficientFunds(channel: PaymentChannel, requiredAmount: BigUInt) -> Bool {
@@ -73,13 +127,5 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
     func _isValidChannel(channel: PaymentChannel, expiry: BigUInt) -> Bool {
         guard let channelexpiry = channel.state["expiry"] else { return false }
         return BigUInt.compare(channelexpiry, expiry) == .orderedSame || BigUInt.compare(channelexpiry, expiry) == .orderedDescending
-    }
-    
-    func _getPrice() -> BigUInt {
-        return 0
-    }
-    
-    func getPaymentMetadata() -> [[String: Any]] {
-        return []
     }
 }

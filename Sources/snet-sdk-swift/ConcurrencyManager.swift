@@ -22,7 +22,7 @@ class ConcurrencyManager {
         self._serviceClient = serviceClient
         let serviceEndpoint = serviceClient.getserviceEndPoint()
         
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
         defer {
           try? group.syncShutdownGracefully()
         }
@@ -86,9 +86,9 @@ class ConcurrencyManager {
         request.channelID = channelId
         request.currentNonce = UInt64(Int(nonce))
         request.signedAmount = UInt64(Int(amount))
-        request.signature = tokenSignature.data(using: .utf8)!
+        request.signature = tokenSignature
         request.currentBlock = UInt64(Int(currentBlockNumber))
-        request.claimSignature = mpeSignature.data(using: .utf8)!
+        request.claimSignature = mpeSignature
         return request
     }
     
@@ -99,13 +99,13 @@ class ConcurrencyManager {
         return token
     }
     
-    fileprivate func _generateTokenSignature(mpeSignature: String, currentBlockNumber: BigUInt) -> String {
+    fileprivate func _generateTokenSignature(mpeSignature: Data, currentBlockNumber: BigUInt) -> Data {
         let data = [DataToSign(t: "bytes", v: mpeSignature),
                     DataToSign(t: "uint256", v: currentBlockNumber)]
         return self._serviceClient.sign(data)
     }
     
-    fileprivate func _generateMpeSignature(channelId: UInt64, nonce: BigUInt, signedAmount: BigUInt) -> String {
+    fileprivate func _generateMpeSignature(channelId: UInt64, nonce: BigUInt, signedAmount: BigUInt) -> Data {
         let data = [DataToSign(t: "string", v: "__MPE_claim_message" ),
                     DataToSign( t: "address", v: self._serviceClient.mpeContract.address ),
                     DataToSign( t: "uint256", v: channelId ),

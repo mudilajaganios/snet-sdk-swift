@@ -12,15 +12,16 @@ import Web3PromiseKit
 import PromiseKit
 import GRPC
 import NIO
+import NIOHPACK
 
-class ServiceClient {
+class ServiceClient: ServiceClientProtocol {
     
     private unowned let _sdk: SnetSDK
     private unowned let _mpeContract: MPEContract
     private let _options: [String: Any]
     private var _metadata: [String: Any]
     private var _group: [String: Any]
-    private let _paymentChannelManagementStrategy: Any?
+    private let _paymentChannelManagementStrategy: PaymentStrategyProtocol?
     private let _paymentChannelStateServiceClient: Escrow_PaymentChannelStateServiceClient!
     private var _paymentChannels: [PaymentChannel]
     
@@ -28,7 +29,7 @@ class ServiceClient {
     
     init(sdk: SnetSDK, orgId: String, serviceId: String, mpeContract: MPEContract,
          metadata: [String: Any], group: [String: Any],
-         paymentChannelManagementStrategy: Any? = nil,
+         paymentChannelManagementStrategy: PaymentStrategyProtocol? = nil,
          options: [String: Any] = [:]) {
         self._sdk = sdk
         self._metadata = metadata
@@ -47,7 +48,7 @@ class ServiceClient {
             serviceEndpoint = endpoints.first ?? ""
         }
         
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
         defer {
           try? group.syncShutdownGracefully()
         }
@@ -61,8 +62,6 @@ class ServiceClient {
         }
         
         guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
-//        return
-        
         self._paymentChannelStateServiceClient = Escrow_PaymentChannelStateServiceClient(channel: channel)
     }
     
@@ -117,44 +116,50 @@ class ServiceClient {
         return try? self._paymentChannelStateServiceClient.getChannelState(stateRequest).response.wait()
     }
     
-    func loadOpenChannels() -> [PaymentChannel] {
-        firstly {
-            self.getCurrentBlockNumber()
-        }.done { currentBlockNumber in
-            let newPaymentChannels = self._mpeContract.getPastOpenChannels(account: self.account,
-                                                                           service: self,
-                                                                           startingBlockNumber: self._lastReadBlock)
+    func loadOpenChannels() -> Promise<[PaymentChannel]> {
+        let currentBlockNumber = self.getCurrentBlockNumber()
+        let newPaymentChannels = self._mpeContract.getPastOpenChannels(account: self.account,
+                                                                       service: self,
+                                                                       startingBlockNumber: self._lastReadBlock)
+        return firstly {
+            when(fulfilled: currentBlockNumber, newPaymentChannels)
+        }.then { (blockNumber, newChannels) -> Promise<[PaymentChannel]> in
+            self._paymentChannels += newChannels
+            self._lastReadBlock = blockNumber
             
-            self._paymentChannels += newPaymentChannels
-            self._lastReadBlock = currentBlockNumber
+            return Promise { paymentchannels in
+                paymentchannels.fulfill(self._paymentChannels)
+            }
         }
-        return self._paymentChannels
     }
     
-    func updateChannelStates() -> [PaymentChannel] {
+    func updateChannelStates() -> Promise<[PaymentChannel]> {
         let syncPromises = self._paymentChannels.map {
             $0.syncState()
         }
         
-        firstly {
+        return firstly {
             when(fulfilled: syncPromises)
-        }.done { _ in
-            
+        }.then { (_) -> Promise<[PaymentChannel]> in
+            return Promise { paymentchannels in
+                paymentchannels.fulfill(self._paymentChannels)
+            }
         }
-        
-        return self._paymentChannels
     }
     
-    func openChannel(amount: BigUInt, expiry: BigUInt) {
-        let newChannelReceipt = self._mpeContract.openChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
+    func openChannel(amount: BigUInt, expiry: BigUInt) -> Promise<PaymentChannel> {
+        return firstly {
+            self._mpeContract.openChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
+        }.then { (transactionData) -> Promise<PaymentChannel> in
+            return self._getNewlyOpenedChannel(from: transactionData)
+        }
     }
     
-    func depositAndOpenChannel(amount: BigUInt, expiry: BigUInt) {
-        firstly {
+    func depositAndOpenChannel(amount: BigUInt, expiry: BigUInt) -> Promise<PaymentChannel> {
+        return firstly {
             self._mpeContract.depositAndOpenChannel(account: self.account, service: self, amountInCogs: amount, expiry: expiry)
-        }.done { (transactionData) in
-            self._web3.eth.getTransactionReceipt(transactionHash: transactionData)
-//            self._getNewlyOpenedChannel()
+        }.then { (transactionData) -> Promise<PaymentChannel> in
+            return self._getNewlyOpenedChannel(from: transactionData)
         }
     }
     
@@ -176,7 +181,7 @@ class ServiceClient {
     func getFreeCallConfiguration() -> [String: Any]? {
         guard let email = self._options["email"] as? String else { return nil }
         guard let tokenMakeFreeCall = self._options["tokenToMakeFreeCall"] as? String else { return nil }
-        guard let tokenExpirationBlock = self._options["tokenExpirationBlock"] as? String else { return nil }
+        guard let tokenExpirationBlock = self._options["tokenExpirationBlock"] as? Int else { return nil }
         
         return [
             "email": email,
@@ -189,10 +194,9 @@ class ServiceClient {
         return self._web3.eth.blockNumber()
     }
     
-    func sign(_ dataToSign: [DataToSign]) -> String {
+    func sign(_ dataToSign: [DataToSign]) -> Data {
         return self.account.sign(dataToSign)
     }
-    
     
     /// Default Channel Expiration
     /// - Returns: Expiration
@@ -231,9 +235,39 @@ class ServiceClient {
         return enhancedGroup
     }
     
-    private func _getNewlyOpenedChannel(receipent: EthereumTransactionReceiptObject) -> PaymentChannel? {
-        let openChannels = self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: receipent.blockNumber)
-        return openChannels.first
+    private func _getNewlyOpenedChannel(from transaction: EthereumData) -> Promise<PaymentChannel> {
+        return firstly {
+            self._web3.eth.getTransactionReceipt(transactionHash: transaction)
+        }.then { (transactionReceipt) -> Promise<PaymentChannel> in
+            guard let reciept = transactionReceipt else {
+                return Promise { error in
+                    let genericError = NSError(
+                              domain: "snet-sdk",
+                              code: 0,
+                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            }
+            return self._getNewlyOpenedChannel(receipent: reciept)
+        }
+    }
+    
+    private func _getNewlyOpenedChannel(receipent: EthereumTransactionReceiptObject) -> Promise<PaymentChannel> {
+        return firstly {
+            self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: receipent.blockNumber)
+        }.then { (openChannels) -> Promise<PaymentChannel> in
+            return Promise { result in
+                guard let newlyOpenedChannel = openChannels.first else {
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    result.reject(genericError)
+                    return
+                }
+                result.fulfill(newlyOpenedChannel)
+            }
+        }
     }
     
     private func _channelStateRequest(channelId: String) -> Escrow_ChannelStateRequest? {
@@ -270,8 +304,8 @@ class ServiceClient {
     }
     
     //TODO: Need to confirm the type of Payment Strategy
-    private func _fetchPaymentMetadata() {
-        
+    private func _fetchPaymentMetadata() -> Promise<[[String: Any]]> {
+        return self._paymentChannelManagementStrategy!.getPaymentMetadata(serviceClient: self)
     }
     
     func getserviceEndPoint() -> String {
@@ -286,11 +320,10 @@ class ServiceClient {
         }
     }
     
-    //TODO: Need to work on the GRPC implementation
     fileprivate func _generatePaymentChannelStateServiceClient() -> Escrow_PaymentChannelStateServiceClient {
         let serviceEndpoint = self.getserviceEndPoint()
         
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
         defer {
           try? group.syncShutdownGracefully()
         }
@@ -307,15 +340,42 @@ class ServiceClient {
         return Escrow_PaymentChannelStateServiceClient(channel: channel)
     }
     
-    //TODO: Need to work on the GRPC implementation
-    private func _getChannelStateRequestMethodDescriptor() {
+    public var serviceChannel: GRPCChannel {
+        let serviceEndpoint = self.getserviceEndPoint()
         
+        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
+        defer {
+          try? group.syncShutdownGracefully()
+        }
+        
+        var channel: GRPCChannel?
+        
+        if serviceEndpoint.starts(with: "https") {
+            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
+        } else if serviceEndpoint.starts(with: "http") {
+            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
+        }
+        
+        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        return channel
     }
     
-    //TODO: Need to confirm the GRPC implementation
-    private func _getGrpcChannelCredentials(serviceEndpoint: String) {
-        guard let endpointURL = URL(string: serviceEndpoint) else { return }
+    public func getServiceClientOptions() -> Promise<CallOptions?> {
+        guard let disableBlockchainOperations = self._options["disableBlockchainOperations"] as? Bool,
+              !disableBlockchainOperations else {
+            return Promise { options in
+                options.fulfill(nil)
+            }
+        }
         
-//        endpointURL.
+        return firstly {
+            self._fetchPaymentMetadata()
+        }.then { (metadata) -> Promise<CallOptions?> in
+            let headers = metadata.map { ($0.first?.key ?? "", ($0.first?.value as? String) ?? "") }
+            let hpackHeaders = HPACKHeaders(headers)
+            return Promise { options in
+                options.fulfill(CallOptions(customMetadata: hpackHeaders))
+            }
+        }
     }
 }

@@ -7,6 +7,7 @@
 
 import Foundation
 import BigInt
+import PromiseKit
 
 class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
     
@@ -17,23 +18,34 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
         super.init(serviceClient: serviceClient, blockOffset: BigUInt(blockOffset), callAllowance: BigUInt(callAllowance))
     }
     
-    override func getPaymentMetadata() -> [[String : Any]] {
-        let concurrentCallsPrice = self._getPrice()
-        guard let channel = self._selectChannel(),
-              let nonce = channel.state["nonce"] as? Int else { return [] }
-        
-        let token = self._concurrencyManager.getToken(channel: channel, serviceCallPrice: concurrentCallsPrice)
-        let tokenBytes = token.bytes
-        
-        let metadata = [["snet-payment-type": "prepaid-call"],
-                        ["snet-payment-channel-id": channel.channelId],
-                        ["snet-payment-channel-nonce": "\(nonce)" ],
-                        ["snet-prepaid-auth-token-bin": tokenBytes ]]
-        
-        return metadata
+    func getPaymentMetadata() -> Promise<[[String : Any]]> {
+        return firstly {
+            self._selectChannel()
+        }.then { (channel) -> Promise<[[String : Any]]> in
+            return Promise { metadatapromise in
+                guard let nonce = channel.state["nonce"] else {
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
+                    metadatapromise.reject(genericError)
+                    return }
+                
+                let concurrentCallsPrice = self._getPrice()
+                let token = self._concurrencyManager.getToken(channel: channel, serviceCallPrice: concurrentCallsPrice)
+                let tokenBytes = token.bytes
+                
+                let metadata = [["snet-payment-type": "prepaid-call"],
+                                ["snet-payment-channel-id": channel.channelId],
+                                ["snet-payment-channel-nonce": "\(nonce)" ],
+                                ["snet-prepaid-auth-token-bin": tokenBytes ]]
+                
+                metadatapromise.fulfill(metadata)
+            }
+        }
     }
     
-    override func _getPrice() -> BigUInt {
+    func _getPrice() -> BigUInt {
         self._serviceClient._pricePerServiceCall * BigUInt(self._concurrencyManager.concurrentCalls)
     }
 }

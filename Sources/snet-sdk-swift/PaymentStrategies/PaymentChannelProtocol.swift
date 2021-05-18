@@ -7,8 +7,21 @@
 
 import Foundation
 import BigInt
+import PromiseKit
 
 protocol PaymentChannelProtocol {
-    func getPaymentMetadata() -> [[String: Any]]
+    func getPaymentMetadata() -> Promise<[[String: Any]]>
     func _getPrice() -> BigUInt
+}
+
+extension PaymentChannelProtocol {
+    func _getPrice() -> BigUInt {
+        return 0
+    }
+    
+    func getPaymentMetadata() -> Promise<[[String: Any]]> {
+        return Promise { metadata in
+            metadata.fulfill([])
+        }
+    }
 }

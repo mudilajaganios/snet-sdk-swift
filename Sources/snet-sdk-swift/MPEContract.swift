@@ -304,8 +304,10 @@ class MPEContract {
         return channels(channelId).call()
     }
     
-    func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: EthereumQuantity? = nil) -> [PaymentChannel] {
-        var paymentChannels: [PaymentChannel] = []
+    func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: EthereumQuantity? = nil) -> Promise<[PaymentChannel]> {
+        var paymentChannels: Promise<[PaymentChannel]> = Promise { paymentchannels in
+            paymentchannels.fulfill([])
+        }
         guard let fromBlock = startingBlockNumber ?? self._deploymentBlockNumber() else {
             return paymentChannels
         }
@@ -331,21 +333,24 @@ class MPEContract {
             return paymentChannels
         }
         
-        firstly {
+        return firstly {
             getPastEvents("ChannelOpen", filterOptions).call()
-        }.done { channelsOpened in
-            paymentChannels = channelsOpened.filter({ $0.key == "returnValues" }).map {
-                let returnValues = $0.value as? [String: Any]
-                let channelId = returnValues?["channelId"] as? String
+        }.then { (channelsOpened) -> Promise<[PaymentChannel]> in
+            return Promise { paymentchannels in
+                let channels: [PaymentChannel] = channelsOpened.filter({ $0.key == "returnValues" }).map {
+                    let returnValues = $0.value as? [String: Any]
+                    let channelId = returnValues?["channelId"] as? String
+                    
+                    return PaymentChannel(channelId: channelId ?? "",
+                                          web3: self._web3Instance,
+                                          account: account,
+                                          service: service,
+                                          mpeContract: self)
+                }
                 
-                return PaymentChannel(channelId: channelId ?? "",
-                                      web3: self._web3Instance,
-                                      account: account,
-                                      service: service,
-                                      mpeContract: self)
+                return paymentchannels.fulfill(channels)
             }
         }
-        return paymentChannels
     }
     
     //MARK: Private methods

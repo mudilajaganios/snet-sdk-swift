@@ -14,14 +14,14 @@ import PromiseKit
 class FreeCallPaymentStrategy {
     
     fileprivate unowned let _serviceClient: ServiceClient
-    fileprivate unowned let _freeCallStateServiceClient: Escrow_FreeCallStateServiceClient!
+    fileprivate let _freeCallStateServiceClient: Escrow_FreeCallStateServiceClient!
     
     init(serviceClient: ServiceClient) {
         self._serviceClient = serviceClient
         
         let serviceEndpoint = serviceClient.getserviceEndPoint()
         
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
         defer {
             try? group.syncShutdownGracefully()
         }
@@ -39,36 +39,56 @@ class FreeCallPaymentStrategy {
         self._freeCallStateServiceClient = Escrow_FreeCallStateServiceClient(channel: channel)
     }
     
-    func isFreeCallAvailable() -> Bool {
-        self._getFreeCallsAvailable()
-        return true
-    }
-    
-    func getPaymentMetadata() -> [String: Any] {
-        var metadata: [String: Any] = [:]
-        guard let configuration = self._serviceClient.getFreeCallConfiguration(),
-              let email = configuration["email"] as? String,
-              let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String,
-              let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? String else { return metadata }
-        
-        firstly {
-            self._serviceClient.getCurrentBlockNumber()
-        }.done { currentBlockNumber in
-            metadata["snet-current-block-number"] = currentBlockNumber
-            let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
-            metadata["snet-payment-channel-signature-bin"] = signature
+    func isFreeCallAvailable() -> Promise<Bool> {
+        return firstly {
+            self._getFreeCallsAvailable()
+        }.then { freecallsAvailable in
+            return Promise.value(freecallsAvailable.freeCallsAvailable > 0)
         }
-        
-        metadata["snet-free-call-auth-token-bin"] = tokenToMakeFreeCall
-        metadata["snet-free-call-token-expiry-block"] = tokenExpiryDateBlock
-        metadata["snet-payment-type"] = "free-call"
-        metadata["snet-free-call-user-id"] = email
-        
-        return metadata
     }
     
-    private func _getFreeCallsAvailable() {
-        let freeCallRequest = self._getFreeCallStateRequest()
+    func getPaymentMetadata() -> Promise<[[String: Any]]> {
+        return firstly {
+            self._serviceClient.getCurrentBlockNumber()
+        }.then { (currentBlockNumber) -> Promise<[[String: Any]]> in
+            return Promise { metadatapromise in
+                guard let configuration = self._serviceClient.getFreeCallConfiguration(),
+                      let email = configuration["email"] as? String,
+                      let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String,
+                      let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? String else {
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
+                    metadatapromise.reject(genericError)
+                    return }
+                
+                let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
+                
+                let metadata = [["snet-current-block-number": currentBlockNumber]
+                                ,["snet-payment-channel-signature-bin": signature]
+                                ,["snet-free-call-auth-token-bin": tokenToMakeFreeCall]
+                                ,["snet-free-call-token-expiry-block": tokenExpiryDateBlock]
+                                ,["snet-payment-type": "free-call"]
+                                ,["snet-free-call-user-id": email]]
+                
+                metadatapromise.fulfill(metadata)
+            }
+        }
+    }
+    
+    private func _getFreeCallsAvailable() -> Promise<Escrow_FreeCallStateReply> {
+        return firstly {
+            self._getFreeCallStateRequest()
+        }.then { (request) -> Promise<Escrow_FreeCallStateReply> in
+            do {
+                let response = try self._freeCallStateServiceClient.getFreeCallsAvailable(request).response.wait()
+                return Promise.value(response)
+            } catch {
+                print(error.localizedDescription)
+                return Promise.value(Escrow_FreeCallStateReply())
+            }
+        }
     }
     
     private func _generateSignature(currentBlockNumber: BigUInt) -> Data? {
@@ -80,7 +100,7 @@ class FreeCallPaymentStrategy {
         guard let configuration = self._serviceClient.getFreeCallConfiguration(),
               let email = configuration["email"] as? String,
               let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String,
-              let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? String else { return nil }
+              let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? Int else { return nil }
         
         return self._serviceClient.sign([
             DataToSign(t: "string", v: "__prefix_free_trial"),
@@ -89,54 +109,67 @@ class FreeCallPaymentStrategy {
             DataToSign(t: "string", v: serviceId ),
             DataToSign(t: "string", v: groupId ),
             DataToSign(t: "uint256", v: currentBlockNumber ),
-            DataToSign(t: "bytes", v: "")//tokenToMakeFreeCall.substring(2, tokenToMakeFreeCall.length) ),
-        ]).data(using: .utf8)
+            DataToSign(t: "bytes", v: tokenToMakeFreeCall.bytes)
+        ])
     }
     
-    private func _getFreeCallStateRequest() -> Escrow_FreeCallStateRequest? {
-        let properties = self._getFreeCallStateRequestProperties()
-        guard let userId = properties["userId"] as? String,
-              let tokenForFreeCall = properties["tokenForFreeCall"] as? Data,
-              let tokenExpiryDateBlock = properties["tokenExpiryDateBlock"] as? UInt64,
-              let signature = properties["signature"] as? String,
-              let currentBlockNumber = properties["currentBlockNumber"] as? BigUInt else {
-            return nil
+    private func _getFreeCallStateRequest() -> Promise<Escrow_FreeCallStateRequest> {
+        return firstly {
+            self._getFreeCallStateRequestProperties()
+        }.then { (properties) -> Promise<Escrow_FreeCallStateRequest> in
+            return Promise { request in
+                guard let userId = properties["userId"] as? String,
+                      let tokenForFreeCall = properties["tokenForFreeCall"] as? String,
+                      let freecallToken = tokenForFreeCall.data(using: .utf8),
+                      let tokenExpiryDateBlock = properties["tokenExpiryDateBlock"] as? Int,
+                      let signature = properties["signature"] as? String,
+                      let currentBlockNumber = properties["currentBlockNumber"] as? BigUInt else {
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to get properties"])
+                    request.reject(genericError)
+                    return
+                }
+                
+                var freecallStateRequest = Escrow_FreeCallStateRequest()
+                freecallStateRequest.userID = userId
+                freecallStateRequest.tokenForFreeCall = freecallToken
+                freecallStateRequest.tokenExpiryDateBlock = UInt64(tokenExpiryDateBlock)
+                freecallStateRequest.signature = signature.data(using: .utf8)!
+                freecallStateRequest.currentBlock = try! UInt64(currentBlockNumber)
+                request.fulfill(freecallStateRequest)
+            }
         }
-        
-        var freecallStateRequest = Escrow_FreeCallStateRequest()
-        freecallStateRequest.userID = userId
-        freecallStateRequest.tokenForFreeCall = tokenForFreeCall
-        freecallStateRequest.tokenExpiryDateBlock = tokenExpiryDateBlock
-        freecallStateRequest.signature = signature.data(using: .utf8)!
-        freecallStateRequest.currentBlock = try! UInt64(currentBlockNumber)
-        return freecallStateRequest
     }
     
-    private func _getFreeCallStateRequestProperties() -> [String: Any] {
-        
-        var properties: [String: Any] = [:]
-        
-        guard let freeCallConfiguration = self._serviceClient.getFreeCallConfiguration(),
-              let email = freeCallConfiguration["email"] as? String,
-              let tokenToMakeFreeCall = freeCallConfiguration["tokenToMakeFreeCall"] as? String,
-              let tokenExpiryDateBlock = freeCallConfiguration["tokenExpiryDateBlock"] as? String else {
-            return properties
-        }
-        
-        
-        firstly {
+    private func _getFreeCallStateRequestProperties() -> Promise<[String: Any]> {
+        return firstly {
             self._serviceClient.getCurrentBlockNumber()
-        }.done { currentBlockNumber in
-            properties["currentBlockNumber"] = currentBlockNumber
-            let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
-            properties["signature"] = signature
+        }.then { (currentBlockNumber) -> Promise<[String: Any]> in
+            return Promise { promise in
+                
+                guard let freeCallConfiguration = self._serviceClient.getFreeCallConfiguration(),
+                      let email = freeCallConfiguration["email"] as? String,
+                      let tokenToMakeFreeCall = freeCallConfiguration["tokenToMakeFreeCall"] as? String,
+                      let tokenExpiryDateBlock = freeCallConfiguration["tokenExpiryDateBlock"] as? Int else {
+                    
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
+                    promise.reject(genericError)
+                    return
+                }
+                
+                let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
+                let properties = ["currentBlockNumber": currentBlockNumber
+                                  ,"signature":signature
+                                  ,"userId":email
+                                  ,"tokenForFreeCall":tokenToMakeFreeCall
+                                  ,"tokenExpiryDateBlock":tokenExpiryDateBlock] as [String : Any]
+                promise.fulfill(properties)
+            }
         }
-        
-        properties["userId"] = email
-        properties["tokenForFreeCall"] = tokenToMakeFreeCall
-        properties["tokenExpiryDateBlock"] = tokenExpiryDateBlock
-        
-        
-        return properties
     }
 }

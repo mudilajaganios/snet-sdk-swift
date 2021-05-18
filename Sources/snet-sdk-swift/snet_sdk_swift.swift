@@ -17,7 +17,7 @@ public class SnetSDK {
     private let _mpeContract: MPEContract
     private let _account: Account
     
-    private var _paymentChannelManagementStrategy: Any?
+    private var _paymentChannelManagementStrategy: PaymentStrategyProtocol?
     
     public init(config: SDKConfig, metadataProvider: IPFSMetadataProvider? = nil) {
         let web3 = Web3(provider: Web3HttpProvider(rpcURL: config.web3Provider))
@@ -39,7 +39,7 @@ public class SnetSDK {
         return self._account
     }
     
-    public var paymentChannelManagementStrategy: Any? {
+    public var paymentChannelManagementStrategy: PaymentStrategyProtocol? {
         get {
             return self._paymentChannelManagementStrategy
         }
@@ -51,7 +51,7 @@ public class SnetSDK {
     func createServiceClient(orgId: String,
                              serviceId: String,
                              groupName: String = "default_group",
-                             paymentChannelManagementStrategy: Any? = nil,
+                             paymentChannelManagementStrategy: PaymentStrategyProtocol? = nil,
                              options: [String: Any] = [:],
                              concurrentCalls: Int = 1) -> Promise<ServiceClient> {
         firstly {
@@ -71,7 +71,8 @@ public class SnetSDK {
                                                   mpeContract: self._mpeContract,
                                                   metadata: metadata,
                                                   group: group,
-                                                  paymentChannelManagementStrategy: paymentStrategy)
+                                                  paymentChannelManagementStrategy: paymentStrategy,
+                                                  options: options)
                 serviceClientPromise.fulfill(serviceClient)
             }
         }
@@ -86,7 +87,7 @@ public class SnetSDK {
         return group
     }
     
-    fileprivate func _constructStrategy(paymentChannelStrategy: Any?, concurrentCalls: Int = 1) -> Any {
+    fileprivate func _constructStrategy(paymentChannelStrategy: PaymentStrategyProtocol?, concurrentCalls: Int = 1) -> PaymentStrategyProtocol {
         guard let strategy = paymentChannelStrategy else {
             guard let strategy = self._paymentChannelManagementStrategy else {
                 return DefaultPaymentStrategy(concurrentCalls: concurrentCalls)
