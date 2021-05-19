@@ -28,11 +28,12 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
         let updateChannelStates = self._serviceClient.updateChannelStates()
         let paymentChannels = self._serviceClient.paymentChannels
         let serviceCallPrice = self._getPrice()
+        let expirationPromise = self._serviceClient.defaultChannelExpiration()
         var mpeBalance: BigUInt = 0
         
         return firstly {
-            when(fulfilled: loadOpenChannels, updateChannelStates, account.escrowBalance())
-        }.then { (_ ,_ , escrowbalance) -> Promise<PaymentChannel> in
+            when(fulfilled: loadOpenChannels, updateChannelStates, account.escrowBalance(), expirationPromise)
+        }.then { (_ ,_ , escrowbalance, defaultExpiration) -> Promise<PaymentChannel> in
             guard let mpeBalance = escrowbalance.values.first as? BigUInt else {
                 return Promise { error in
                     let genericError = NSError(
@@ -43,7 +44,6 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
                 }
             }
             
-            let defaultExpiration = self._serviceClient.defaultChannelExpiration()
             let extendedExpiry = defaultExpiration + self._blockOffset
             
             let promise: Promise<PaymentChannel>?
@@ -84,39 +84,42 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
     }
     
     private func _getselectedPaymentChannel(selectedPaymentChannel: PaymentChannel) -> Promise<PaymentChannel> {
-        let defaultExpiration = self._serviceClient.defaultChannelExpiration()
-        let extendedExpiry = defaultExpiration + self._blockOffset
-        let serviceCallPrice = self._getPrice()
-        let extendChannelFund = serviceCallPrice * self._callAllowance
-        
-        let hasSufficientFunds = self._doesChannelHaveSufficientFunds(channel: selectedPaymentChannel, requiredAmount: serviceCallPrice)
-        let isValidChannel = self._isValidChannel(channel: selectedPaymentChannel, expiry: defaultExpiration)
-        
-        var promise: Promise<EthereumData>?
-        
-        if hasSufficientFunds && !isValidChannel {
-            promise = selectedPaymentChannel.extend(expiry: extendedExpiry)
-        } else if !hasSufficientFunds && isValidChannel {
-            promise = selectedPaymentChannel.addFunds(amount: extendChannelFund)
-        } else if !hasSufficientFunds && !isValidChannel {
-            promise = selectedPaymentChannel.extendAndAddFunds(expiry: extendedExpiry, amount: extendChannelFund)
-        }
-        
-        guard let promise = promise else {
-            return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+        return firstly {
+            self._serviceClient.defaultChannelExpiration()
+        }.then { defaultExpiration -> Promise<PaymentChannel> in
+            let extendedExpiry = defaultExpiration + self._blockOffset
+            let serviceCallPrice = self._getPrice()
+            let extendChannelFund = serviceCallPrice * self._callAllowance
+            
+            let hasSufficientFunds = self._doesChannelHaveSufficientFunds(channel: selectedPaymentChannel, requiredAmount: serviceCallPrice)
+            let isValidChannel = self._isValidChannel(channel: selectedPaymentChannel, expiry: defaultExpiration)
+            
+            var promise: Promise<EthereumData>?
+            
+            if hasSufficientFunds && !isValidChannel {
+                promise = selectedPaymentChannel.extend(expiry: extendedExpiry)
+            } else if !hasSufficientFunds && isValidChannel {
+                promise = selectedPaymentChannel.addFunds(amount: extendChannelFund)
+            } else if !hasSufficientFunds && !isValidChannel {
+                promise = selectedPaymentChannel.extendAndAddFunds(expiry: extendedExpiry, amount: extendChannelFund)
             }
-        }
-        
-        return promise.then({(_) -> Promise<PaymentChannel> in
-            return Promise { channel in
-                channel.fulfill(selectedPaymentChannel)
+            
+            guard let promise = promise else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
             }
-        })
+            
+            return promise.then({(_) -> Promise<PaymentChannel> in
+                return Promise { channel in
+                    channel.fulfill(selectedPaymentChannel)
+                }
+            })
+        }
     }
     
     func _doesChannelHaveSufficientFunds(channel: PaymentChannel, requiredAmount: BigUInt) -> Bool {

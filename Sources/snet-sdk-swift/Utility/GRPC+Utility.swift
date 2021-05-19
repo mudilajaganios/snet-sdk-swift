@@ -18,20 +18,28 @@ internal class GRPCUtility {
         
         var channel: GRPCChannel?
         
+        var host = ""
         var port = 80
         
         if let lastIndex = serviceEndpoint.range(of: ":", options: .backwards)?.lowerBound {
             var portString = String(serviceEndpoint[lastIndex...])
             portString.removeFirst()
             port = Int(portString)!
-//            let length = serviceEndpoint.count - (lastIndex + 1)
-//            port = Int(serviceEndpoint.substr(lastIndex + 1, length) ?? "0") ?? 80
+            
+            
+        }
+        
+        if let firstIndex = serviceEndpoint.range(of: "//", options: .backwards)?.upperBound,
+           let lastIndex = serviceEndpoint.range(of: ":", options: .backwards)?.lowerBound {
+            var hostString = String(serviceEndpoint[firstIndex...lastIndex])
+            hostString.removeLast()
+            host = hostString
         }
         
         if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: port)
+            channel = ClientConnection.secure(group: group).connect(host: host, port: port)
         } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: port)
+            channel = ClientConnection.insecure(group: group).connect(host: host, port: port)
         }
         
         guard let channel = channel else { preconditionFailure("Channel initialization is failed")}

@@ -187,16 +187,16 @@ class ServiceClient: ServiceClientProtocol {
     
     /// Default Channel Expiration
     /// - Returns: Expiration
-    func defaultChannelExpiration() -> BigUInt {
-        var defaultExpiration: BigUInt = 0
-        firstly {
+    func defaultChannelExpiration() -> Promise<BigUInt> {
+        return firstly {
             self.getCurrentBlockNumber()
-        }.done { currentBlockNumber in
-            defaultExpiration = currentBlockNumber.quantity
+        }.then { currentBlockNumber -> Promise<BigUInt> in
+            var defaultExpiration: BigUInt = currentBlockNumber.quantity
             defaultExpiration += self._getPaymentExpiryThreshold()
+            return Promise { expiration in
+                expiration.fulfill(defaultExpiration)
+            }
         }
-        
-        return defaultExpiration
     }
     
     //MARK: Private methods
@@ -290,7 +290,6 @@ class ServiceClient: ServiceClientProtocol {
         return properties
     }
     
-    //TODO: Need to confirm the type of Payment Strategy
     private func _fetchPaymentMetadata() -> Promise<[[String: Any]]> {
         return self._paymentChannelManagementStrategy!.getPaymentMetadata(serviceClient: self)
     }
