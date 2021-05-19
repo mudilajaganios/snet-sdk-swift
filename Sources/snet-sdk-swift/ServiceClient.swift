@@ -48,20 +48,7 @@ class ServiceClient: ServiceClientProtocol {
             serviceEndpoint = endpoints.first ?? ""
         }
         
-        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-          try? group.syncShutdownGracefully()
-        }
-        
-        var channel: GRPCChannel?
-        
-        if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
-        } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
-        }
-        
-        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
         self._paymentChannelStateServiceClient = Escrow_PaymentChannelStateServiceClient(channel: channel)
     }
     
@@ -167,7 +154,7 @@ class ServiceClient: ServiceClientProtocol {
         guard let orgId = self._metadata["orgId"] as? String else { return nil }
         guard let serviceId = self._metadata["serviceId"] as? String else { return nil }
         guard let groupId = self._group["group_id"] as? String else { return nil }
-        guard let groupIdInBytes = self._group["group_id_in_bytes"] as? String else { return nil }
+        guard let groupIdInBytes = self._group["group_id_in_bytes"] as? Data else { return nil }
         
         return [
             "orgId": orgId,
@@ -292,10 +279,10 @@ class ServiceClient: ServiceClientProtocol {
         firstly {
             self._web3.eth.blockNumber()
         }.done { blockNumber in
-            let signature = self.account.sign([DataToSign(t: "string", v: "__get_channel_state"),
-                               DataToSign(t: "address", v: self._mpeContract.address),
-                               DataToSign(t: "uint256", v: channelId),
-                               DataToSign(t: "uint256", v: blockNumber.quantity)])
+            let signature = self.account.sign([DataToSign(type: "string", value: "__get_channel_state"),
+                               DataToSign(type: "address", value: self._mpeContract.address),
+                               DataToSign(type: "uint256", value: channelId),
+                               DataToSign(type: "uint256", value: blockNumber.quantity)])
             properties["currentBlockNumber"] = blockNumber
             properties["signatureBytes"] = signature.bytes
         }
@@ -323,40 +310,14 @@ class ServiceClient: ServiceClientProtocol {
     fileprivate func _generatePaymentChannelStateServiceClient() -> Escrow_PaymentChannelStateServiceClient {
         let serviceEndpoint = self.getserviceEndPoint()
         
-        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-          try? group.syncShutdownGracefully()
-        }
-        
-        var channel: GRPCChannel?
-        
-        if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
-        } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
-        }
-        
-        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
         return Escrow_PaymentChannelStateServiceClient(channel: channel)
     }
     
     public var serviceChannel: GRPCChannel {
         let serviceEndpoint = self.getserviceEndPoint()
         
-        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-          try? group.syncShutdownGracefully()
-        }
-        
-        var channel: GRPCChannel?
-        
-        if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
-        } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
-        }
-        
-        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
         return channel
     }
     

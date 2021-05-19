@@ -40,11 +40,11 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
     }
     
     func _generateSignature(channelId: String, nonce: BigUInt, amount: BigUInt) -> Data {
-        return self._serviceClient.sign([ DataToSign(t: "string", v: "__MPE_claim_message" ),
-                                              DataToSign(t: "address", v: self._serviceClient.mpeContract.address?.hex(eip55: true) ),
-                                              DataToSign(t: "uint256", v: channelId),
-                                              DataToSign(t: "uint256", v: nonce),
-                                              DataToSign(t: "uint256", v: amount)])
+        return self._serviceClient.sign([ DataToSign(type: "string", value: "__MPE_claim_message" ),
+                                              DataToSign(type: "address", value: self._serviceClient.mpeContract.address?.hex(eip55: true)),
+                                              DataToSign(type: "uint256", value: channelId),
+                                              DataToSign(type: "uint256", value: nonce),
+                                              DataToSign(type: "uint256", value: amount)])
     }
     
     func _getPrice() -> BigUInt {

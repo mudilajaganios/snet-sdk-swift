@@ -130,14 +130,9 @@ public final class Account {
     }
     
     func sign(_ dataToSign: [DataToSign]) -> Data {
-        let sha3 = SHA3(variant: .sha256) //TODO: Confirm the SHA3 variant
-        
-        guard let data = try? JSONSerialization.data(withJSONObject: dataToSign) else {
-            return Data()
-        }
-        let sha3array = Array(data)
-        let sha3Data = sha3.calculate(for: sha3array)
-        return self._identity.signData(sha3Message: sha3Data)
+        let data = NSKeyedArchiver.archivedData(withRootObject: dataToSign)
+//        let sha3Data = data.sha3(.sha256)
+        return self._identity.signData(sha3Message: data)
     }
     
     public func sendTransaction(toAddress: EthereumAddress, operation: EthereumCall) -> Promise<EthereumData> {

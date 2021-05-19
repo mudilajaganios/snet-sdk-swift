@@ -22,20 +22,7 @@ class ConcurrencyManager {
         self._serviceClient = serviceClient
         let serviceEndpoint = serviceClient.getserviceEndPoint()
         
-        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-          try? group.syncShutdownGracefully()
-        }
-        
-        var channel: GRPCChannel?
-        
-        if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
-        } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
-        }
-        
-        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
         
         let client = Escrow_TokenServiceClient(channel: channel)
         
@@ -100,17 +87,17 @@ class ConcurrencyManager {
     }
     
     fileprivate func _generateTokenSignature(mpeSignature: Data, currentBlockNumber: BigUInt) -> Data {
-        let data = [DataToSign(t: "bytes", v: mpeSignature),
-                    DataToSign(t: "uint256", v: currentBlockNumber)]
+        let data = [DataToSign(type: "bytes", value: mpeSignature),
+                    DataToSign(type: "uint256", value: Int(currentBlockNumber))]
         return self._serviceClient.sign(data)
     }
     
     fileprivate func _generateMpeSignature(channelId: UInt64, nonce: BigUInt, signedAmount: BigUInt) -> Data {
-        let data = [DataToSign(t: "string", v: "__MPE_claim_message" ),
-                    DataToSign( t: "address", v: self._serviceClient.mpeContract.address ),
-                    DataToSign( t: "uint256", v: channelId ),
-                    DataToSign( t: "uint256", v: nonce ),
-                    DataToSign( t: "uint256", v: signedAmount )]
+        let data = [DataToSign(type: "string", value: "__MPE_claim_message" ),
+                    DataToSign( type: "address", value: self._serviceClient.mpeContract.address ),
+                    DataToSign( type: "uint256", value: channelId ),
+                    DataToSign( type: "uint256", value: nonce ),
+                    DataToSign( type: "uint256", value: signedAmount )]
         return self._serviceClient.sign(data)
     }
 }

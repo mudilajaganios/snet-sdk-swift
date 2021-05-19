@@ -14,27 +14,13 @@ import PromiseKit
 class FreeCallPaymentStrategy {
     
     fileprivate unowned let _serviceClient: ServiceClient
-    fileprivate let _freeCallStateServiceClient: Escrow_FreeCallStateServiceClient!
+    fileprivate let _freeCallStateServiceClient: Escrow_FreeCallStateServiceClient
     
     init(serviceClient: ServiceClient) {
         self._serviceClient = serviceClient
         
         let serviceEndpoint = serviceClient.getserviceEndPoint()
-        
-        let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-            try? group.syncShutdownGracefully()
-        }
-        
-        var channel: GRPCChannel?
-        
-        if serviceEndpoint.starts(with: "https") {
-            channel = ClientConnection.secure(group: group).connect(host: serviceEndpoint, port: 443)
-        } else if serviceEndpoint.starts(with: "http") {
-            channel = ClientConnection.insecure(group: group).connect(host: serviceEndpoint, port: 80)
-        }
-        
-        guard let channel = channel else { preconditionFailure("Channel initialization is failed")}
+        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
         
         self._freeCallStateServiceClient = Escrow_FreeCallStateServiceClient(channel: channel)
     }
@@ -55,7 +41,7 @@ class FreeCallPaymentStrategy {
                 guard let configuration = self._serviceClient.getFreeCallConfiguration(),
                       let email = configuration["email"] as? String,
                       let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String,
-                      let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? String else {
+                      let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? Int else {
                     let genericError = NSError(
                         domain: "snet-sdk",
                         code: 0,
@@ -65,7 +51,7 @@ class FreeCallPaymentStrategy {
                 
                 let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
                 
-                let metadata = [["snet-current-block-number": currentBlockNumber]
+                let metadata = [["snet-current-block-number": currentBlockNumber.quantity]
                                 ,["snet-payment-channel-signature-bin": signature]
                                 ,["snet-free-call-auth-token-bin": tokenToMakeFreeCall]
                                 ,["snet-free-call-token-expiry-block": tokenExpiryDateBlock]
@@ -103,13 +89,13 @@ class FreeCallPaymentStrategy {
               let tokenExpiryDateBlock = configuration["tokenExpiryDateBlock"] as? Int else { return nil }
         
         return self._serviceClient.sign([
-            DataToSign(t: "string", v: "__prefix_free_trial"),
-            DataToSign(t: "string", v: email),
-            DataToSign(t: "string", v: orgId),
-            DataToSign(t: "string", v: serviceId ),
-            DataToSign(t: "string", v: groupId ),
-            DataToSign(t: "uint256", v: currentBlockNumber ),
-            DataToSign(t: "bytes", v: tokenToMakeFreeCall.bytes)
+            DataToSign(type: "string", value: "__prefix_free_trial"),
+            DataToSign(type: "string", value: email),
+            DataToSign(type: "string", value: orgId),
+            DataToSign(type: "string", value: serviceId ),
+            DataToSign(type: "string", value: groupId ),
+            DataToSign(type: "uint256", value: Int(currentBlockNumber)),
+            DataToSign(type: "bytes", value: tokenToMakeFreeCall.bytes)
         ])
     }
     
@@ -122,7 +108,7 @@ class FreeCallPaymentStrategy {
                       let tokenForFreeCall = properties["tokenForFreeCall"] as? String,
                       let freecallToken = tokenForFreeCall.data(using: .utf8),
                       let tokenExpiryDateBlock = properties["tokenExpiryDateBlock"] as? Int,
-                      let signature = properties["signature"] as? String,
+                      let signature = properties["signature"] as? Data,
                       let currentBlockNumber = properties["currentBlockNumber"] as? BigUInt else {
                     let genericError = NSError(
                         domain: "snet-sdk",
@@ -136,7 +122,7 @@ class FreeCallPaymentStrategy {
                 freecallStateRequest.userID = userId
                 freecallStateRequest.tokenForFreeCall = freecallToken
                 freecallStateRequest.tokenExpiryDateBlock = UInt64(tokenExpiryDateBlock)
-                freecallStateRequest.signature = signature.data(using: .utf8)!
+                freecallStateRequest.signature = signature
                 freecallStateRequest.currentBlock = try! UInt64(currentBlockNumber)
                 request.fulfill(freecallStateRequest)
             }
@@ -163,7 +149,7 @@ class FreeCallPaymentStrategy {
                 }
                 
                 let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
-                let properties = ["currentBlockNumber": currentBlockNumber
+                let properties = ["currentBlockNumber": currentBlockNumber.quantity
                                   ,"signature":signature
                                   ,"userId":email
                                   ,"tokenForFreeCall":tokenToMakeFreeCall

@@ -9,6 +9,7 @@ import Foundation
 import Web3
 import Web3PromiseKit
 import PromiseKit
+import CryptoKit
 
 class PrivateKeyIdentity {
     
@@ -27,9 +28,69 @@ class PrivateKeyIdentity {
     }
     
     //TODO: Sign the message against private key
-    public func signData(sha3Message: Array<UInt8>) -> Data {
+    public func signData(sha3Message: Data) -> Data {
+        do {
+            let privateKey = try EthereumPrivateKey(hexPrivateKey: self._privateKey)
+            let signedMessage = try privateKey.sign(message: sha3Message.bytes)
+            let signature = signedMessage.r.toHexString() + signedMessage.s.toHexString() + String(format:"%02x", signedMessage.v+27)
+            return Data(hex: signature)
+        } catch {
+            print(error)
+        }
         return Data()
     }
+//
+//
+//
+//        let bytes = self._privateKey.hexToBytes()
+//
+//        let secKeyData = Data(bytes)
+//
+////        let accessControl = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleAlways, [.privateKeyUsage], nil)
+//
+////        let accessControl = SecAccessControlCreateWithFlags(
+////                    kCFAllocatorDefault,
+////                    kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+////                    nil)
+//
+////        guard let secKeyData =  self._privateKey.data(using: .ascii) else {
+////                print("Error: invalid encodedKey, cannot extract data")
+////                return Data()
+////            }
+//            let attributes =
+//            [
+//                kSecAttrIsPermanent:false,
+//                kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+//                kSecAttrKeyClass: kSecAttrKeyClassPrivate,
+////                kSecAttrAccessControl:accessControl
+//            ] as [String: Any]
+//
+//        var keyerror: Unmanaged<CFError>?
+//
+////        let key = SecKeyCreateRandomKey(attributes as CFDictionary, &keyerror)
+////        print(keyerror)
+//
+//        guard let secKey = SecKeyCreateWithData(secKeyData as CFData, attributes as CFDictionary, &keyerror) else {
+//            print(keyerror)
+//                print("Error: Problem in SecKeyCreateWithData()")
+//                return Data()
+//        }
+//
+//        var algorithm: SecKeyAlgorithm = .rsaSignatureDigestPKCS1v15SHA256
+//
+//        if #available(macOS 10.13, *) {
+//            algorithm = .rsaSignatureMessagePSSSHA256
+//        }
+//
+//        var error: Unmanaged<CFError>?
+//
+//        guard let signedData = SecKeyCreateSignature(secKey, algorithm, sha3Message as CFData, &error) as Data? else {
+//            print(error)
+//            return Data()
+//        }
+//
+//        return signedData
+//    }
     
     public func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
         guard let privateKey = try? EthereumPrivateKey(hexPrivateKey: "0x" + self._privateKey),
