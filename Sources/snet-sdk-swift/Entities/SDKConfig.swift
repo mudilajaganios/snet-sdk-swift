@@ -1,6 +1,6 @@
 //
 //  SDKConfig.swift
-//  
+//  snet-sdk-swift
 //
 //  Created by Jagan Kumar Mudila on 24/03/2021.
 //
@@ -16,7 +16,7 @@ public struct SDKConfig {
     var defaultGasPrice: Int
     var defaultGasLimit: Int
     
-    init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String) {
+    public init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String) {
         self.web3Provider = web3Provider
         self.privateKey = privateKey
         self.signerPrivateKey = signerPrivateKey
@@ -26,12 +26,12 @@ public struct SDKConfig {
         self.defaultGasLimit = DefaultConfig.defaultGasLimit
     }
     
-    init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String, ipfsEndpoint: String) {
+    public init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String, ipfsEndpoint: String) {
         self.init(web3Provider: web3Provider, privateKey: privateKey, signerPrivateKey: signerPrivateKey, networkId: networkId)
         self.ipfsEndpoint = ipfsEndpoint
     }
     
-    init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String, ipfsEndpoint: String, defaultGasPrice: Int, defaultGasLimit: Int) {
+    public init(web3Provider: String, privateKey: String, signerPrivateKey: String, networkId: String, ipfsEndpoint: String, defaultGasPrice: Int, defaultGasLimit: Int) {
         self.init(web3Provider: web3Provider, privateKey: privateKey, signerPrivateKey: signerPrivateKey, networkId: networkId, ipfsEndpoint: ipfsEndpoint)
         self.defaultGasPrice = defaultGasPrice
         self.defaultGasLimit = defaultGasLimit
