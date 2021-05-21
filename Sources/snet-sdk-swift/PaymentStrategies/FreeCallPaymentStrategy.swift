@@ -44,16 +44,25 @@ class FreeCallPaymentStrategy {
                     metadatapromise.reject(genericError)
                     return }
                 
-                let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
+                var signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
                 
-                let metadata = [["snet-current-block-number": currentBlockNumber.quantity]
+                let hexBytes = signature.hexToBytes()
+                signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
+                
+                var freeCallAuthToken = "0x" + tokenToMakeFreeCall
+                
+                let hexBytes2 = freeCallAuthToken.hexToBytes()
+                freeCallAuthToken = Data(hexBytes2).base64EncodedString(options: .init(rawValue: 0))
+                
+                let metadata = [["snet-current-block-number": currentBlockNumber.quantity.description]
                                 ,["snet-payment-channel-signature-bin": signature]
-                                ,["snet-free-call-auth-token-bin": tokenToMakeFreeCall]
-                                ,["snet-free-call-token-expiry-block": tokenExpiryDateBlock]
+                                ,["snet-free-call-auth-token-bin": freeCallAuthToken]
+                                ,["snet-free-call-token-expiry-block": "\(tokenExpiryDateBlock)"]
                                 ,["snet-payment-type": "free-call"]
                                 ,["snet-free-call-user-id": email]]
                 
                 metadatapromise.fulfill(metadata)
+                print(metadata)
             }
         }
     }
@@ -84,8 +93,6 @@ class FreeCallPaymentStrategy {
         guard let configuration = self._serviceClient.getFreeCallConfiguration(),
               let email = configuration["email"] as? String,
               let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String else { return "" }
-        
-        print(currentBlockNumber)
         
         let hexString = "__prefix_free_trial".tohexString()
             + email.tohexString()
@@ -155,17 +162,5 @@ class FreeCallPaymentStrategy {
                 promise.fulfill(properties)
             }
         }
-    }
-}
-
-extension String {
-    func tohexString() -> String {
-        guard let data = self.data(using: .utf8) else { preconditionFailure("Could not get data")}
-        let hexString = data.map{ String(format:"%02x", $0) }.joined()
-        return hexString
-    }
-    
-    func utf8toHexBytes() -> [UInt8] {
-        return self.tohexString().hexToBytes()
     }
 }

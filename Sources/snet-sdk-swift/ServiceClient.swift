@@ -181,11 +181,6 @@ class ServiceClient: ServiceClientProtocol {
         return self._web3.eth.blockNumber()
     }
     
-    #warning("This method is deprecated")
-    func sign(_ dataToSign: [DataToSign]) -> Data {
-        return self.account.sign(dataToSign)
-    }
-    
     func sign(dataToSign: String) -> String {
         return self.account.sign(dataToSign: dataToSign)
     }
