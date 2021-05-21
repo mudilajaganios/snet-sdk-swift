@@ -21,7 +21,14 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
     func getPaymentMetadata() -> Promise<[[String : Any]]> {
         return firstly {
             self._selectChannel()
-        }.then { (channel) -> Promise<[[String : Any]]> in
+        }.then({ channel -> Promise<(PaymentChannel, String)> in
+            let concurrentCallsPrice = self._getPrice()
+            return self._concurrencyManager.getToken(channel: channel,
+                                                     serviceCallPrice: concurrentCallsPrice)
+                .then { token -> Promise<(PaymentChannel, String)> in
+                    return Promise.value((channel, token))
+                }
+        }).then { (channel, token) -> Promise<[[String : Any]]> in
             return Promise { metadatapromise in
                 guard let nonce = channel.state["nonce"] else {
                     let genericError = NSError(
@@ -31,8 +38,6 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
                     metadatapromise.reject(genericError)
                     return }
                 
-                let concurrentCallsPrice = self._getPrice()
-                let token = self._concurrencyManager.getToken(channel: channel, serviceCallPrice: concurrentCallsPrice)
                 let tokenBytes = token.bytes
                 
                 let metadata = [["snet-payment-type": "prepaid-call"],

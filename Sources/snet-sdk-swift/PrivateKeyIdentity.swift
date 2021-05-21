@@ -10,6 +10,7 @@ import Web3
 import Web3PromiseKit
 import PromiseKit
 import CryptoKit
+import CryptoSwift
 
 class PrivateKeyIdentity {
     
@@ -27,70 +28,43 @@ class PrivateKeyIdentity {
         return self._defaultAccount
     }
     
-    //TODO: Sign the message against private key
-    public func signData(sha3Message: Data) -> Data {
+    public func signData(sha3Message: String) -> Data {
         do {
             let privateKey = try EthereumPrivateKey(hexPrivateKey: self._privateKey)
-            let signedMessage = try privateKey.sign(message: sha3Message.bytes)
-            let signature = signedMessage.r.toHexString() + signedMessage.s.toHexString() + String(format:"%02x", signedMessage.v+27)
+            let signedMessage = try privateKey.sign(message: sha3Message.makeBytes())
+            var signature = signedMessage.r.toHexString() + signedMessage.s.toHexString() + String(format:"%02x", signedMessage.v+27)
+            print("Signature:\(signature)")
             return Data(hex: signature)
         } catch {
             print(error)
         }
         return Data()
     }
-//
-//
-//
-//        let bytes = self._privateKey.hexToBytes()
-//
-//        let secKeyData = Data(bytes)
-//
-////        let accessControl = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleAlways, [.privateKeyUsage], nil)
-//
-////        let accessControl = SecAccessControlCreateWithFlags(
-////                    kCFAllocatorDefault,
-////                    kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-////                    nil)
-//
-////        guard let secKeyData =  self._privateKey.data(using: .ascii) else {
-////                print("Error: invalid encodedKey, cannot extract data")
-////                return Data()
-////            }
-//            let attributes =
-//            [
-//                kSecAttrIsPermanent:false,
-//                kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
-//                kSecAttrKeyClass: kSecAttrKeyClassPrivate,
-////                kSecAttrAccessControl:accessControl
-//            ] as [String: Any]
-//
-//        var keyerror: Unmanaged<CFError>?
-//
-////        let key = SecKeyCreateRandomKey(attributes as CFDictionary, &keyerror)
-////        print(keyerror)
-//
-//        guard let secKey = SecKeyCreateWithData(secKeyData as CFData, attributes as CFDictionary, &keyerror) else {
-//            print(keyerror)
-//                print("Error: Problem in SecKeyCreateWithData()")
-//                return Data()
-//        }
-//
-//        var algorithm: SecKeyAlgorithm = .rsaSignatureDigestPKCS1v15SHA256
-//
-//        if #available(macOS 10.13, *) {
-//            algorithm = .rsaSignatureMessagePSSSHA256
-//        }
-//
-//        var error: Unmanaged<CFError>?
-//
-//        guard let signedData = SecKeyCreateSignature(secKey, algorithm, sha3Message as CFData, &error) as Data? else {
-//            print(error)
-//            return Data()
-//        }
-//
-//        return signedData
-//    }
+    
+    public func signData(message: String) -> String {
+        do {
+            //Calculate hash Encoded bytes
+            let messagehash = SHA3(variant: .keccak256).calculate(for: message.hexToBytes())
+            let messageBuffer = Data(hex: messagehash.toHexString())
+            //Append preamble (UTF-8) bytes
+            let preambleString = "\u{19}Ethereum Signed Message:\n\(messagehash.count)"
+            guard var preambleBuffer = preambleString.data(using: .utf8) else { return "" }
+            preambleBuffer.append(messageBuffer)
+            //Calculate hash
+            let hash = SHA3(variant: .keccak256).calculate(for: preambleBuffer.bytes)
+            //Sign hash
+            let privateKey = try EthereumPrivateKey(hexPrivateKey: self._privateKey)
+            let signedMessage = try privateKey.sign(hash: hash)
+            
+            //Concatenating r s v values from the signature
+            var signature = "0x" + signedMessage.r.toHexString() + signedMessage.s.toHexString() + String(format:"%02x", signedMessage.v+27)
+            
+            return signature
+        } catch {
+            print(error)
+        }
+        return ""
+    }
     
     public func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
         guard let privateKey = try? EthereumPrivateKey(hexPrivateKey: "0x" + self._privateKey),

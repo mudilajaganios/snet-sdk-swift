@@ -58,21 +58,6 @@ public final class IPFSMetadataProvider {
         }
     }
     
-    //TODO: Remove this method upon completion
-    func getOrgsList() -> Promise<[String: Any]> {
-        guard let contract = self._registryContract else {
-            return Promise { error in
-                let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
-            }
-        }
-        
-        return contract["listOrganizations"]!().call()
-    }
-    
     /// Pulls Organization metadata from IPFS interface
     /// - Parameters:
     ///   - orgId: Organization id provided by the client
