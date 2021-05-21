@@ -12,9 +12,10 @@ import GRPC
 internal class GRPCUtility {
     internal static func getGRPCChannel(serviceEndpoint: String) -> GRPCChannel {
         let group = PlatformSupport.makeEventLoopGroup(loopCount: 1)
-        defer {
-            try? group.syncShutdownGracefully()
-        }
+        
+//        defer {
+//            try? group.syncShutdownGracefully()
+//        }
         
         var channel: GRPCChannel?
         

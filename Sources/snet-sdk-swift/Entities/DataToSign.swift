@@ -7,25 +7,31 @@
 
 import Foundation
 
-class DataToSign: NSObject, NSCoding {
-    var type: String!
-    var value: Any!
+struct DataToSign: Encodable {
+    let type: String
+    let value: String
     
-    required convenience init(coder decoder: NSCoder) {
-        self.init()
-        self.type = decoder.decodeObject(forKey: "type") as! String
-        self.value = decoder.decodeObject(forKey: "value") as! Any
-    }
-    convenience init(type: String, value: Any) {
-        self.init()
-        self.type = type
-        self.value = value
+    enum CodingKeys: String, CodingKey {
+        case type = "t"
+        case value = "v"
     }
     
-    func encode(with coder: NSCoder) {
-        if let type = type { coder.encode(type, forKey: "type") }
-        if let value = value { coder.encode(value, forKey: "value") }
-    }
+//    required convenience init(coder decoder: NSCoder) {
+//        self.init()
+//        self.type = decoder.decodeObject(forKey: "type") as! String
+//        self.value = decoder.decodeObject(forKey: "value") as! Any
+//    }
+//    convenience
+//    init(type: String, value: String) {
+//        self.init()
+//        self.type = type
+//        self.value = value
+//    }
+    
+//    func encode(with coder: NSCoder) {
+//        if let type = type { coder.encode(type, forKey: "type") }
+//        if let value = value { coder.encode(value, forKey: "value") }
+//    }
 }  //= (t: String, v: Any)
 
 //extension DataToSign {

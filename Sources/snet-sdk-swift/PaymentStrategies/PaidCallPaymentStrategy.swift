@@ -16,8 +16,8 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
             self._selectChannel()
         }.then { (channel) -> Promise<[[String : Any]]> in
             return Promise { metadatapromise in
-                guard let currentSignedAmount = channel.state["currentSignedAmount"] as? Int,
-                      let nonce = channel.state["nonce"] as? Int else {
+                guard let currentSignedAmount = channel.state["currentSignedAmount"],
+                      let nonce = channel.state["nonce"] else {
                     let genericError = NSError(
                         domain: "snet-sdk",
                         code: 0,
@@ -25,9 +25,9 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
                     metadatapromise.reject(genericError)
                     return }
                 
-                let amount = BigUInt(currentSignedAmount) + self._getPrice()
+                let amount = currentSignedAmount + self._getPrice()
                 
-                let signature = self._generateSignature(channelId: channel.channelId, nonce: BigUInt(nonce), amount: amount)
+                let signature = self._generateSignature(channelId: channel.channelId, nonce: nonce, amount: amount)
                 
                 let metadata = [["snet-payment-type": "escrow"],
                                 ["snet-payment-channel-id": channel.channelId],
@@ -39,12 +39,15 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
         }
     }
     
-    func _generateSignature(channelId: String, nonce: BigUInt, amount: BigUInt) -> Data {
-        return self._serviceClient.sign([ DataToSign(type: "string", value: "__MPE_claim_message" ),
-                                              DataToSign(type: "address", value: self._serviceClient.mpeContract.address?.hex(eip55: true)),
-                                              DataToSign(type: "uint256", value: channelId),
-                                              DataToSign(type: "uint256", value: nonce),
-                                              DataToSign(type: "uint256", value: amount)])
+    func _generateSignature(channelId: String, nonce: BigUInt, amount: BigUInt) -> String {
+        
+        let hexString = "__MPE_claim_message".tohexString()
+            + self._serviceClient.mpeContract.address!.hex(eip55: false) // Address field
+            + String(BigUInt(stringLiteral: channelId), radix: 16).paddingLeft(toLength: 64, withPad: "0")
+            + String(nonce, radix: 16).paddingLeft(toLength: 64, withPad: "0")
+            + String(amount, radix: 16).paddingLeft(toLength: 64, withPad: "0")
+        
+        return self._serviceClient.sign(dataToSign: hexString)
     }
     
     func _getPrice() -> BigUInt {

@@ -14,9 +14,20 @@ extension String {
                 return self
             } else if let to = self.index(self.startIndex, offsetBy: length, limitedBy: self.endIndex) {
                 return self.substring(from: to)
-
             } else {
                 return ""
             }
         }
+}
+
+extension String {
+    func tohexString() -> String {
+        guard let data = self.data(using: .utf8) else { preconditionFailure("Could not get data")}
+        let hexString = data.map{ String(format:"%02x", $0) }.joined()
+        return hexString
+    }
+    
+    func utf8toHexBytes() -> [UInt8] {
+        return self.tohexString().hexToBytes()
+    }
 }
