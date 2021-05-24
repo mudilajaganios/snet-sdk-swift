@@ -15,13 +15,13 @@ protocol PaymentChannelProtocol {
 }
 
 extension PaymentChannelProtocol {
-    func _getPrice() -> BigUInt {
-        return 0
-    }
+//    func _getPrice() -> BigUInt {
+//        return 0
+//    }
     
-    func getPaymentMetadata() -> Promise<[[String: Any]]> {
-        return Promise { metadata in
-            metadata.fulfill([])
-        }
-    }
+//    func getPaymentMetadata() -> Promise<[[String: Any]]> {
+//        return Promise { metadata in
+//            metadata.fulfill([])
+//        }
+//    }
 }

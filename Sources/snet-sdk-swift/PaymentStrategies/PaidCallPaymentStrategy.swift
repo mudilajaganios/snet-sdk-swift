@@ -11,7 +11,7 @@ import PromiseKit
 
 class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
     
-    func getPaymentMetadata() -> Promise<[[String : Any]]> {
+    override func getPaymentMetadata() -> Promise<[[String : Any]]> {
         return firstly {
             self._selectChannel()
         }.then { (channel) -> Promise<[[String : Any]]> in
@@ -50,7 +50,7 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
         return self._serviceClient.sign(dataToSign: hexString)
     }
     
-    func _getPrice() -> BigUInt {
+    override func _getPrice() -> BigUInt {
         self._serviceClient._pricePerServiceCall
     }
 }

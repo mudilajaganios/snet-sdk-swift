@@ -18,7 +18,7 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
         super.init(serviceClient: serviceClient, blockOffset: BigUInt(blockOffset), callAllowance: BigUInt(callAllowance))
     }
     
-    func getPaymentMetadata() -> Promise<[[String : Any]]> {
+    override func getPaymentMetadata() -> Promise<[[String : Any]]> {
         return firstly {
             self._selectChannel()
         }.then({ channel -> Promise<(PaymentChannel, String)> in
@@ -50,7 +50,7 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
         }
     }
     
-    func _getPrice() -> BigUInt {
-        self._serviceClient._pricePerServiceCall * BigUInt(self._concurrencyManager.concurrentCalls)
+    override func _getPrice() -> BigUInt {
+        return self._serviceClient._pricePerServiceCall * BigUInt(self._concurrencyManager.concurrentCalls)
     }
 }

@@ -84,8 +84,8 @@ class ServiceClient: ServiceClientProtocol {
     var _pricePerServiceCall: BigUInt {
         guard let pricing = self.group["pricing"] as? [[String: Any]] else { return 0 }
         let fixedPricing = pricing.first { $0["price_model"] as? String == "fixed_price" }
-        guard let priceinCogs = fixedPricing?["price_in_cogs"] as? Int else { return 0 }
-        return BigUInt(priceinCogs)
+        guard let priceinCogs = fixedPricing?["price_in_cogs"] as? UInt64 else { return 0 }
+        return BigUInt(integerLiteral: priceinCogs)
     }
     
     var concurrencyFlag: Bool {
@@ -202,18 +202,17 @@ class ServiceClient: ServiceClientProtocol {
     //MARK: Private methods
     private func _getPaymentExpiryThreshold() -> BigUInt {
         guard let payment = self._group["payment"] as? [String: Any],
-              let paymentThresholdString = payment["payment_expiration_threshold"] as? String,
-              let paymentThreshold = BigUInt(paymentThresholdString) else {
+              let paymentThresholdInt = payment["payment_expiration_threshold"] as? UInt64 else {
             return 0
         }
+        let paymentThreshold = BigUInt(integerLiteral: paymentThresholdInt)
         return paymentThreshold
     }
     
     private static func _enhanceGroupInfo(group: [String: Any]) -> [String: Any] {
         var enhancedGroup = group
-        if let groupID = group["group_id"] as? String,
-           let groupIDBytes = groupID.data(using: .ascii) {
-            enhancedGroup["group_id_in_bytes"] = groupIDBytes
+        if let groupID = group["group_id"] as? String {
+            enhancedGroup["group_id_in_bytes"] = groupID.utf8toBase64()
         }
         if let payment = group["payment"] as? [String: Any] {
             enhancedGroup["payment_address"] = payment["payment_address"]

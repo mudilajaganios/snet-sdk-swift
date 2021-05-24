@@ -48,9 +48,9 @@ class MPEContract {
               let balances = contract["balances"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
@@ -62,19 +62,13 @@ class MPEContract {
               let deposit = contract["deposit"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = deposit(amountInCogs.description).createCall() else { return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = deposit(amountInCogs.description)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -83,20 +77,13 @@ class MPEContract {
               let withdraw = contract["withdraw"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = withdraw(amountInCogs.description).createCall() else {
-            return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = withdraw(amountInCogs.description)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -105,37 +92,31 @@ class MPEContract {
               let openChannel = contract["openChannel"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-
+        
         guard let paymentaddress = service.group["payment_address"] as? String,
               let recipientAddress = EthereumAddress(hexString: paymentaddress) else { return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
-            } }
+              } }
         guard let groupId = service.group["group_id_in_bytes"] as? Data else { return Promise { error in
             let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                domain: "snet-sdk",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
             error.reject(genericError)
         } }
         let signerAddress = account.getSignerAddress()
-        guard let operation = openChannel(signerAddress, recipientAddress, groupId,
-                                          amountInCogs.description, expiry.description).createCall() else { return Promise { error in
-                                            let genericError = NSError(
-                                                      domain: "snet-sdk",
-                                                      code: 0,
-                                                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                                            error.reject(genericError)
-                                        } }
+        let operation = openChannel(signerAddress, recipientAddress, groupId,
+                                          amountInCogs, expiry)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -144,61 +125,51 @@ class MPEContract {
         return firstly {
             //Check account allowance
             account.allowance()
-        }.then { (allowance) -> Promise<EthereumData> in
-            guard let approvedAmount = allowance["alreadyApprovedAmount"] as? BigUInt else { return Promise { error in
+        }.then { (allowance) -> Promise<Void> in
+            guard let approvedAmount = allowance.first?.value as? BigUInt else { return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to fetch approved amount"])
                 error.reject(genericError)
             } }
             
             if amountInCogs > approvedAmount {
-                guard let contract = self._mpeContract,
-                      let depositAndOpenChannel = contract["depositAndOpenChannel"] else {
-                    return Promise { error in
-                        let genericError = NSError(
-                                  domain: "snet-sdk",
-                                  code: 0,
-                                  userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                        error.reject(genericError)
-                    }
-                }
-
-                guard let paymentaddress = service.group["payment_address"] as? String,
-                      let recipientAddress = EthereumAddress(hexString: paymentaddress) else { return Promise { error in
-                        let genericError = NSError(
-                                  domain: "snet-sdk",
-                                  code: 0,
-                                  userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                        error.reject(genericError)
-                    } }
-                guard let groupId = service.group["group_id_in_bytes"] as? Data else { return Promise { error in
-                    let genericError = NSError(
-                              domain: "snet-sdk",
-                              code: 0,
-                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
-                } }
-                let signerAddress = account.getSignerAddress()
-                guard let operation = depositAndOpenChannel(signerAddress, recipientAddress, groupId,
-                                                  amountInCogs.description, expiry.description).createCall() else { return Promise { error in
-                                                    let genericError = NSError(
-                                                              domain: "snet-sdk",
-                                                              code: 0,
-                                                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                                                    error.reject(genericError)
-                                                } }
-                return account.sendTransaction(toAddress: self.address!, operation: operation)
+                return account.approveTransfer(amountInCogs: amountInCogs).asVoid()
             } else {
+                return Promise.value
+            }
+        }.then { _ -> Promise<EthereumData> in
+            guard let contract = self._mpeContract,
+                  let depositAndOpenChannel = contract["depositAndOpenChannel"] else {
                 return Promise { error in
                     let genericError = NSError(
-                              domain: "snet-sdk",
-                              code: 0,
-                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                     error.reject(genericError)
                 }
             }
+            
+            guard let paymentaddress = service.group["payment_address"] as? String,
+                  let recipientAddress = EthereumAddress(hexString: paymentaddress) else { return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                  } }
+            guard let groupId = service.group["group_id_in_bytes"] as? Data else { return Promise { error in
+                let genericError = NSError(
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                error.reject(genericError)
+            } }
+            let signerAddress = account.getSignerAddress()
+            let operation = depositAndOpenChannel(signerAddress, recipientAddress, groupId,
+                                                        amountInCogs, expiry)
+            return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
     }
     
@@ -209,19 +180,13 @@ class MPEContract {
               let channelAddFunds = contract["channelAddFunds"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = channelAddFunds(channelId, amountInCogs.description).createCall() else { return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = channelAddFunds(channelId, amountInCogs.description)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -230,19 +195,13 @@ class MPEContract {
               let channelExtend = contract["channelExtend"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = channelExtend(channelId, expiry.description).createCall() else { return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = channelExtend(channelId, expiry.description)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -253,19 +212,13 @@ class MPEContract {
               let channelExtendAndAddFunds = contract["channelExtendAndAddFunds"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = channelExtendAndAddFunds(channelId, expiry.description, amountInCogs.description).createCall() else { return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = channelExtendAndAddFunds(channelId, expiry.description, amountInCogs.description)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -274,19 +227,13 @@ class MPEContract {
               let channelClaimTimeout = contract["channelClaimTimeout"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }
-        guard let operation = channelClaimTimeout(channelId).createCall() else { return Promise { error in
-            let genericError = NSError(
-                      domain: "snet-sdk",
-                      code: 0,
-                      userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-            error.reject(genericError)
-        } }
+        let operation = channelClaimTimeout(channelId)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -295,9 +242,9 @@ class MPEContract {
               let channels = contract["channels"] else {
             return Promise { error in
                 let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
                 error.reject(genericError)
             }
         }

@@ -87,10 +87,8 @@ public final class Account {
     }
     
     public func approveTransfer(amountInCogs: BigUInt) -> Promise<EthereumData> {
-        let amountString = amountInCogs.description
         guard let approve = self._tokenContract["approve"],
               let mpeAddress = self._mpeContract.address,
-              let approveOperation = approve(mpeAddress, amountString).createCall(),
               let tokenContractAddress = self._tokenContract.address else {
             return Promise { error in
                 let genericError = NSError(
@@ -100,7 +98,7 @@ public final class Account {
                 error.reject(genericError)
             }
         }
-        return self.sendTransaction(toAddress: tokenContractAddress, operation: approveOperation)
+        return self.sendTransaction(toAddress: tokenContractAddress, operation: approve(mpeAddress, amountInCogs))
     }
     
     public func allowance() -> Promise<[String: Any]> {
@@ -130,7 +128,6 @@ public final class Account {
     }
     
     func sign(_ dataToSign: [DataToSign]) -> Data {
-//        let data = NSKeyedArchiver.archivedData(withRootObject: dataToSign)
         let jsonEncoder = JSONEncoder()
         guard let jsonData = try? jsonEncoder.encode(dataToSign) else { return Data() }
         guard let json = String(data: jsonData, encoding: .utf8) else { return Data() }
@@ -141,16 +138,16 @@ public final class Account {
         return self._identity.signData(message: dataToSign)
     }
     
-    public func sendTransaction(toAddress: EthereumAddress, operation: EthereumCall) -> Promise<EthereumData> {
+    public func sendTransaction(toAddress: EthereumAddress, operation: SolidityInvocation) -> Promise<EthereumData> {
+        let address = self.getAddress()
         let gasPricePromise = self._web3Instance.eth.gasPrice()
-        let estimatedGasPricePromise = self._web3Instance.eth.estimateGas(call: operation)
+        let estimatedGasPricePromise = operation.estimateGas(from: address)
         let noncePromise = self._transactionCount()
         
         return firstly {
             when(fulfilled: gasPricePromise, estimatedGasPricePromise, noncePromise)
         }.then { (gasPrice, estimatedGasPrice, nonce) -> Promise<EthereumData> in
-            let address = self.getAddress()
-            guard let operationData = operation.data else {
+            guard let operationData = operation.encodeABI() else {
                 return Promise { error in
                     let genericError = NSError(
                         domain: "snet-sdk",
@@ -164,7 +161,7 @@ public final class Account {
                                                  gas: estimatedGasPrice,
                                                  from: address,
                                                  to: toAddress,
-                                                 value: operation.value,
+                                                 value: EthereumQuantity(quantity: 1.eth),
                                                  data: operationData)
             return self._identity.sendTransaction(transactionObject: transacton)
         }

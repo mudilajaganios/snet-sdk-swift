@@ -30,4 +30,9 @@ extension String {
     func utf8toHexBytes() -> [UInt8] {
         return self.tohexString().hexToBytes()
     }
+    
+    func utf8toBase64() -> Data {
+        guard let data = self.data(using: .utf8) else { preconditionFailure("Could not get data")}
+        return data.base64EncodedData()
+    }
 }

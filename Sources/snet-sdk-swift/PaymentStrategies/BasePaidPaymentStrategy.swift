@@ -11,6 +11,10 @@ import Web3
 import PromiseKit
 
 class BasePaidPaymentStrategy: PaymentChannelProtocol {
+    func getPaymentMetadata() -> Promise<[[String : Any]]> {
+        return Promise.value([])
+    }
+    
     
     let _serviceClient: ServiceClient
     let _blockOffset: BigUInt
@@ -130,5 +134,9 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
     func _isValidChannel(channel: PaymentChannel, expiry: BigUInt) -> Bool {
         guard let channelexpiry = channel.state["expiry"] else { return false }
         return BigUInt.compare(channelexpiry, expiry) == .orderedSame || BigUInt.compare(channelexpiry, expiry) == .orderedDescending
+    }
+    
+    func _getPrice() -> BigUInt {
+        return 0
     }
 }
