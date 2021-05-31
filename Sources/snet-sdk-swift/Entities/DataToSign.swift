@@ -7,14 +7,14 @@
 
 import Foundation
 
-struct DataToSign: Encodable {
-    let type: String
-    let value: String
-    
-    enum CodingKeys: String, CodingKey {
-        case type = "t"
-        case value = "v"
-    }
+//struct DataToSign: Encodable {
+//    let type: String
+//    let value: String
+//
+//    enum CodingKeys: String, CodingKey {
+//        case type = "t"
+//        case value = "v"
+//    }
     
 //    required convenience init(coder decoder: NSCoder) {
 //        self.init()
@@ -32,7 +32,7 @@ struct DataToSign: Encodable {
 //        if let type = type { coder.encode(type, forKey: "type") }
 //        if let value = value { coder.encode(value, forKey: "value") }
 //    }
-}  //= (t: String, v: Any)
+//}  //= (t: String, v: Any)
 
 //extension DataToSign {
 //    var array: [UInt8] {

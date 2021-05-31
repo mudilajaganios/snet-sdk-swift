@@ -278,12 +278,16 @@ class ServiceClient: ServiceClientProtocol {
         firstly {
             self._web3.eth.blockNumber()
         }.done { blockNumber in
-            let signature = self.account.sign([DataToSign(type: "string", value: "__get_channel_state"),
-                                               DataToSign(type: "address", value: self._mpeContract.address!.hex(eip55: true)),
-                               DataToSign(type: "uint256", value: channelId),
-                               DataToSign(type: "uint256", value: blockNumber.quantity.description)])
+            let datahex = "__get_channel_state".tohexString() +
+                self._mpeContract.address!.hex(eip55: true) +
+                channelId.tohexString() +
+                blockNumber.hex()
+            
+            var signature = self.account.sign(dataToSign: datahex)
+            let hexBytes = signature.hexToBytes()
+            signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
             properties["currentBlockNumber"] = blockNumber
-            properties["signatureBytes"] = signature.bytes
+            properties["signatureBytes"] = signature
         }
         
         return properties
@@ -304,13 +308,6 @@ class ServiceClient: ServiceClientProtocol {
             return endpoint
         }
     }
-    
-//    fileprivate func _generatePaymentChannelStateServiceClient() -> Escrow_PaymentChannelStateServiceClient {
-//        let serviceEndpoint = self.getserviceEndPoint()
-//
-//        let channel = GRPCUtility.getGRPCChannel(serviceEndpoint: serviceEndpoint)
-//        return Escrow_PaymentChannelStateServiceClient(channel: channel)
-//    }
     
     public var serviceChannel: GRPCChannel {
         let serviceEndpoint = self.getserviceEndPoint()

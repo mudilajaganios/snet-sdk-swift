@@ -127,13 +127,6 @@ public final class Account {
         return self.getAddress()
     }
     
-    func sign(_ dataToSign: [DataToSign]) -> Data {
-        let jsonEncoder = JSONEncoder()
-        guard let jsonData = try? jsonEncoder.encode(dataToSign) else { return Data() }
-        guard let json = String(data: jsonData, encoding: .utf8) else { return Data() }
-        return self._identity.signData(sha3Message: json)
-    }
-    
     func sign(dataToSign: String) -> String {
         return self._identity.signData(message: dataToSign)
     }
@@ -147,7 +140,10 @@ public final class Account {
         return firstly {
             when(fulfilled: gasPricePromise, estimatedGasPricePromise, noncePromise)
         }.then { (gasPrice, estimatedGasPrice, nonce) -> Promise<EthereumData> in
-            guard let operationData = operation.encodeABI() else {
+            guard let transaction = operation.createTransaction(nonce: nonce,
+                                                                 from: address, value: 0,
+                                                                 gas: estimatedGasPrice,
+                                                                 gasPrice: gasPrice) else {
                 return Promise { error in
                     let genericError = NSError(
                         domain: "snet-sdk",
@@ -156,14 +152,7 @@ public final class Account {
                     error.reject(genericError)
                 }
             }
-            let transacton = EthereumTransaction(nonce: nonce,
-                                                 gasPrice: gasPrice,
-                                                 gas: estimatedGasPrice,
-                                                 from: address,
-                                                 to: toAddress,
-                                                 value: EthereumQuantity(quantity: 1.eth),
-                                                 data: operationData)
-            return self._identity.sendTransaction(transactionObject: transacton)
+            return self._identity.sendTransaction(transactionObject: transaction)
         }
     }
     
