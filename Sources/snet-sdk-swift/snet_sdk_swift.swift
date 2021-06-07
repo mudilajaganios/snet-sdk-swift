@@ -48,15 +48,15 @@ public class SnetSDK {
         }
     }
     
-    func createServiceClient(orgId: String,
+    public func createServiceClient(orgId: String,
                              serviceId: String,
                              groupName: String = "default_group",
                              paymentChannelManagementStrategy: PaymentStrategyProtocol? = nil,
                              options: [String: Any] = [:],
-                             concurrentCalls: Int = 1) -> Promise<ServiceClient> {
+                             concurrentCalls: Int = 1) -> Promise<ServiceClientProtocol> {
         firstly {
             self._metadataProvider.metadata(orgId: orgId, serviceId: serviceId)
-        }.then { (metadata) -> Promise<ServiceClient> in
+        }.then { (metadata) -> Promise<ServiceClientProtocol> in
             return Promise { serviceClientPromise in
                 guard let group = self._serviceGroup(serviceMetadata: metadata, orgId: orgId, serviceId: serviceId, groupName: groupName) else {
                     let genericError = NSError(
