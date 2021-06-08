@@ -16,8 +16,8 @@ import NIOHPACK
 
 class ServiceClient: ServiceClientProtocol {
     
-    private unowned let _sdk: SnetSDK
-    private unowned let _mpeContract: MPEContract
+    private let _sdk: SnetSDK
+    private let _mpeContract: MPEContract
     private let _options: [String: Any]
     private var _metadata: [String: Any]
     private var _group: [String: Any]
