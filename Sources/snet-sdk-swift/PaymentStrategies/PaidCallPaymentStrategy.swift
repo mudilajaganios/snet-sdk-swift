@@ -27,12 +27,15 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
                 
                 let amount = currentSignedAmount + self._getPrice()
                 
-                let signature = self._generateSignature(channelId: channel.channelId, nonce: nonce, amount: amount)
+                var signature = self._generateSignature(channelId: channel.channelId, nonce: nonce, amount: amount)
+                
+                let hexBytes = signature.hexToBytes()
+                signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
                 
                 let metadata = [["snet-payment-type": "escrow"],
-                                ["snet-payment-channel-id": channel.channelId],
-                                ["snet-payment-channel-nonce": "\(nonce)" ],
-                                ["snet-payment-channel-amount": amount ],
+                                ["snet-payment-channel-id": channel.channelId.description],
+                                ["snet-payment-channel-nonce": nonce.description ],
+                                ["snet-payment-channel-amount": amount.description ],
                                 ["snet-payment-channel-signature-bin": signature ]]
                 metadatapromise.fulfill(metadata)
             }

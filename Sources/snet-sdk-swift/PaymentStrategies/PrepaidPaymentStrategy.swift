@@ -38,12 +38,13 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
                     metadatapromise.reject(genericError)
                     return }
                 
-                let tokenBytes = token.bytes
+                let hexBytes = token.bytes
+                let token64String = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
                 
                 let metadata = [["snet-payment-type": "prepaid-call"],
-                                ["snet-payment-channel-id": channel.channelId],
-                                ["snet-payment-channel-nonce": "\(nonce)" ],
-                                ["snet-prepaid-auth-token-bin": tokenBytes ]]
+                                ["snet-payment-channel-id": channel.channelId.description],
+                                ["snet-payment-channel-nonce": nonce.description],
+                                ["snet-prepaid-auth-token-bin": token64String]]
                 
                 metadatapromise.fulfill(metadata)
             }
