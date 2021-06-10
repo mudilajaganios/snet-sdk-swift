@@ -39,11 +39,11 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
         }
     }
     
-    func _generateSignature(channelId: String, nonce: BigUInt, amount: BigUInt) -> String {
+    func _generateSignature(channelId: BigUInt, nonce: BigUInt, amount: BigUInt) -> String {
         
         let hexString = "__MPE_claim_message".tohexString()
             + self._serviceClient.mpeContract.address!.hex(eip55: false) // Address field
-            + String(BigUInt(stringLiteral: channelId), radix: 16).paddingLeft(toLength: 64, withPad: "0")
+            + String(channelId, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             + String(nonce, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             + String(amount, radix: 16).paddingLeft(toLength: 64, withPad: "0")
         

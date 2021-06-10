@@ -28,16 +28,15 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
     
     func _selectChannel() -> Promise<PaymentChannel> {
         let account = self._serviceClient.account
-        let loadOpenChannels = self._serviceClient.loadOpenChannels()
-        let updateChannelStates = self._serviceClient.updateChannelStates()
-        let paymentChannels = self._serviceClient.paymentChannels
         let serviceCallPrice = self._getPrice()
-        let expirationPromise = self._serviceClient.defaultChannelExpiration()
-        var mpeBalance: BigUInt = 0
         
         return firstly {
-            when(fulfilled: loadOpenChannels, updateChannelStates, account.escrowBalance(), expirationPromise)
-        }.then { (_ ,_ , escrowbalance, defaultExpiration) -> Promise<PaymentChannel> in
+            self._serviceClient.loadOpenChannels()
+        }.then { _ -> Promise<[PaymentChannel]> in
+            self._serviceClient.updateChannelStates()
+        }.then { _ -> Promise<[String: Any]> in
+            account.escrowBalance()
+        }.then { escrowbalance -> Promise<(BigUInt, BigUInt)> in
             guard let mpeBalance = escrowbalance.values.first as? BigUInt else {
                 return Promise { error in
                     let genericError = NSError(
@@ -47,12 +46,15 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
                     error.reject(genericError)
                 }
             }
-            
+            return self._serviceClient.defaultChannelExpiration().then { defaultExpiration -> Promise<(BigUInt, BigUInt)> in
+               return Promise<(BigUInt, BigUInt)>.value((mpeBalance, defaultExpiration))
+            }
+        }.then { (mpeBalance, defaultExpiration) -> Promise<PaymentChannel> in
             let extendedExpiry = defaultExpiration + self._blockOffset
             
             let promise: Promise<PaymentChannel>?
             
-            if paymentChannels.count < 1 {
+            if self._serviceClient.paymentChannels.count < 1 {
                 if BigUInt.compare(serviceCallPrice, mpeBalance) == .orderedDescending {
                     promise = self._serviceClient.depositAndOpenChannel(amount: serviceCallPrice, expiry: extendedExpiry)
                 } else {
@@ -73,7 +75,7 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
                     return self._getselectedPaymentChannel(selectedPaymentChannel: channel)
                 })
             } else {
-                guard let paymentChannel = paymentChannels.first else {
+                guard let paymentChannel = self._serviceClient.paymentChannels.first else {
                     return Promise { error in
                         let genericError = NSError(
                             domain: "snet-sdk",
@@ -109,19 +111,11 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
             }
             
             guard let promise = promise else {
-                return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
-                }
+                return Promise<PaymentChannel>.value(selectedPaymentChannel)
             }
             
             return promise.then({(_) -> Promise<PaymentChannel> in
-                return Promise { channel in
-                    channel.fulfill(selectedPaymentChannel)
-                }
+                return Promise<PaymentChannel>.value(selectedPaymentChannel)
             })
         }
     }

@@ -98,9 +98,19 @@ class ServiceClient: ServiceClientProtocol {
     
     //MARK: methods
     
-    func getChannelState(channelId: String) -> Escrow_ChannelStateReply? {
-        guard let stateRequest = self._channelStateRequest(channelId: channelId) else { return nil }
-        return try? self._paymentChannelStateServiceClient.getChannelState(stateRequest).response.wait()
+    func getChannelState(channelId: BigUInt) -> Promise<Escrow_ChannelStateReply> {
+        firstly {
+            self._channelStateRequest(channelId: channelId)
+        }.then { stateRequest -> Promise<Escrow_ChannelStateReply> in
+            do {
+                let channelStateReply = try self._paymentChannelStateServiceClient.getChannelState(stateRequest).response.wait()
+                return Promise<Escrow_ChannelStateReply>.value(channelStateReply)
+            } catch {
+                return Promise { errorreturn in
+                    errorreturn.reject(error)
+                }
+            }
+        }
     }
     
     func loadOpenChannels() -> Promise<[PaymentChannel]> {
@@ -154,7 +164,7 @@ class ServiceClient: ServiceClientProtocol {
         guard let orgId = self._metadata["orgId"] as? String else { return nil }
         guard let serviceId = self._metadata["serviceId"] as? String else { return nil }
         guard let groupId = self._group["group_id"] as? String else { return nil }
-        guard let groupIdInBytes = self._group["group_id_in_bytes"] as? Data else { return nil }
+        guard let groupIdInBytes = self._group["group_id_in_bytes"] as? [UInt8] else { return nil }
         
         return [
             "orgId": orgId,
@@ -212,7 +222,7 @@ class ServiceClient: ServiceClientProtocol {
     private static func _enhanceGroupInfo(group: [String: Any]) -> [String: Any] {
         var enhancedGroup = group
         if let groupID = group["group_id"] as? String {
-            enhancedGroup["group_id_in_bytes"] = groupID.utf8toBase64()
+            enhancedGroup["group_id_in_bytes"] = groupID.utf8toHexBytes()
         }
         if let payment = group["payment"] as? [String: Any] {
             enhancedGroup["payment_address"] = payment["payment_address"]
@@ -256,41 +266,49 @@ class ServiceClient: ServiceClientProtocol {
         }
     }
     
-    private func _channelStateRequest(channelId: String) -> Escrow_ChannelStateRequest? {
-        let properties = self._channelStateRequestProperties(channelId: channelId)
-        
-        guard let signatureBytes = properties["signatureBytes"] as? Data,
-              let currentBlock = try? UInt64((properties["currentBlockNumber"] as? BigUInt)!)
-              else {
-            return nil
+    private func _channelStateRequest(channelId: BigUInt) -> Promise<Escrow_ChannelStateRequest> {
+        return firstly {
+            self._channelStateRequestProperties(channelId: channelId)
+        }.then { properties -> Promise<Escrow_ChannelStateRequest> in
+            guard let signatureBytes = properties["signatureBytes"] as? String,
+                  let currentBlock = properties["currentBlockNumber"] as? BigUInt
+                  else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
+            }
+            
+            var channelStateRequest = Escrow_ChannelStateRequest()
+            channelStateRequest.channelID = Data(channelId.makeBytes())
+            channelStateRequest.signature = Data(hex: signatureBytes)
+            channelStateRequest.currentBlock = try! UInt64(currentBlock)
+            
+            return Promise<Escrow_ChannelStateRequest>.value(channelStateRequest)
         }
-        
-        var channelStateRequest = Escrow_ChannelStateRequest()
-        channelStateRequest.channelID = channelId.data(using: .utf8)!
-        channelStateRequest.signature = signatureBytes
-        channelStateRequest.currentBlock = currentBlock
-        
-        return channelStateRequest
     }
     
-    private func _channelStateRequestProperties(channelId: String) -> [String: Any] {
-        var properties: [String: Any] = [:]
-        firstly {
+    private func _channelStateRequestProperties(channelId: BigUInt) -> Promise<[String: Any]> {
+        return firstly {
             self._web3.eth.blockNumber()
-        }.done { blockNumber in
+        }.then { blockNumber -> Promise<[String: Any]> in
             let datahex = "__get_channel_state".tohexString() +
-                self._mpeContract.address!.hex(eip55: true) +
-                channelId.tohexString() +
-                blockNumber.hex()
+                self._mpeContract.address!.hex(eip55: false).replacingOccurrences(of: "0x", with: "") +
+                String(channelId, radix: 16).paddingLeft(toLength: 64, withPad: "0") +
+                String(blockNumber.quantity, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             
-            var signature = self.account.sign(dataToSign: datahex)
-            let hexBytes = signature.hexToBytes()
-            signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
-            properties["currentBlockNumber"] = blockNumber
+            let signature = self.account.sign(dataToSign: datahex)
+//            let hexBytes = signature.hexToBytes()
+//            signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
+            var properties: [String: Any] = [:]
+            properties["currentBlockNumber"] = blockNumber.quantity
             properties["signatureBytes"] = signature
+            
+            return Promise<[String: Any]>.value(properties)
         }
-        
-        return properties
     }
     
     private func _fetchPaymentMetadata() -> Promise<[[String: Any]]> {

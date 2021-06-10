@@ -22,6 +22,7 @@ class PrivateKeyIdentity {
     init(config: SDKConfig, web3: Web3) {
         self._web3 = web3
         self._privateKey = config.privateKey
+        
         if let chainId = try? EthereumQuantity(config.networkId) {
             self._chainId =  chainId
         } else {
@@ -79,63 +80,17 @@ class PrivateKeyIdentity {
     }
     
     public func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
-        
-        guard let nonce = transactionObject.nonce?.hex(),
-              let gasPrice = transactionObject.gasPrice?.hex(),
-              let gasLimit = transactionObject.gas?.hex(),
-              let toAddress = transactionObject.to?.hex(eip55: false),
-              let value = transactionObject.value?.hex(),
-              let privateKey = self.privateKey else { return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
-                error.reject(genericError)
-              }
-        }
-        let data = transactionObject.data.hex()
-        let chainId = self._chainId.hex()
-        
-        var transactionData = nonce + gasPrice + gasLimit + toAddress + value + data + chainId + "00" + "00"
-        transactionData = transactionData.replacingOccurrences(of: "0x", with: "")
-        
-        guard let transactionSignature = try? privateKey.sign(message: transactionData.hexToBytes()) else {
+        do {
+            let signedTransaction = try transactionObject.sign(with: self.privateKey!)
+            return _web3.eth.sendRawTransaction(transaction: signedTransaction)
+        } catch {
             return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+              let genericError = NSError(
+                  domain: "snet-sdk",
+                  code: 0,
+                  userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
+              error.reject(genericError)
             }
-        }
-        
-        let v: BigUInt
-        if self._chainId.quantity == 0 {
-            v = BigUInt(transactionSignature.v) + BigUInt(27)
-        } else {
-            let sigV = BigUInt(transactionSignature.v)
-            let big27 = BigUInt(27)
-            let chainIdCalc = (self._chainId.quantity * BigUInt(2) + BigUInt(8))
-            v = sigV + big27 + chainIdCalc
-        }
-        
-        let r = BigUInt(transactionSignature.r)
-        let s = BigUInt(transactionSignature.s)
-        
-        var signatureMessage = nonce + gasPrice + gasLimit + toAddress + value + data //+ v.rlp() + r.rlp() + s.rlp()
-        signatureMessage = signatureMessage.replacingOccurrences(of: "0x", with: "")
-        signatureMessage = "0x" + signatureMessage
-        
-        return Promise { seal in
-            let req = RPCRequest<String>(
-                id: self._web3.properties.rpcId,
-                jsonrpc: Web3.jsonrpc,
-                method: "eth_sendRawTransaction",
-                params: signatureMessage
-            )
-            self._web3.properties.provider.send(request: req, response: { response in
-                seal.resolve(response.result, response.error)
-            })
         }
     }
     
