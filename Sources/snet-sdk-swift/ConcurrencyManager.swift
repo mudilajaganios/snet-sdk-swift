@@ -26,13 +26,22 @@ class ConcurrencyManager {
     }
     
     func getToken(channel: PaymentChannel, serviceCallPrice: BigUInt) -> Promise<String> {
-        guard let currentSignedAmount = channel.state["currentSignedAmount"] else {
+        guard let currentSignedAmount = channel.state["currentSignedAmount"],
+              let plannedAmount = channel.state["plannedAmount"],
+              let usedAmount = channel.state["usedAmount"] else {
             preconditionFailure("Current Signed Amount is missing")
         }
         
         if currentSignedAmount != 0 {
+            var newAmountToBeSigned = currentSignedAmount
+            if (BigUInt.compare(usedAmount, plannedAmount) == .orderedDescending) ||
+                BigUInt.compare(usedAmount, plannedAmount) == .orderedSame ||
+                plannedAmount == 0 {
+                newAmountToBeSigned = currentSignedAmount + serviceCallPrice
+            }
+            
             return firstly {
-                self._getTokenForAmount(channel: channel, amount: currentSignedAmount)
+                self._getTokenForAmount(channel: channel, amount: newAmountToBeSigned)
             }.then { tokenResponse -> Promise<String> in
                 if tokenResponse.usedAmount < tokenResponse.plannedAmount {
                     return Promise.value(tokenResponse.token)

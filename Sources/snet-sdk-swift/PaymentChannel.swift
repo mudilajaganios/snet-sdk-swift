@@ -10,6 +10,13 @@ import Web3
 import Web3ContractABI
 import Web3PromiseKit
 
+struct PaymentChannelState {
+    let nonce: BigUInt
+    let currentSignedAmount: BigUInt
+    let plannedAmount: BigUInt
+    let usedAmount: BigUInt
+}
+
 class PaymentChannel {
     
     private let _web3Instance: Web3
@@ -78,6 +85,8 @@ class PaymentChannel {
             self._state["amountDeposited"] = amountDeposited
             self._state["currentSignedAmount"] = currentState.currentSignedAmount
             self._state["availableAmount"] = availableAmount
+            self._state["plannedAmount"] = currentState.plannedAmount
+            self._state["usedAmount"] = currentState.usedAmount
             
             return Promise { state in
                 state.fulfill(self)
@@ -85,14 +94,18 @@ class PaymentChannel {
         }
     }
     
-    fileprivate func _currentChannelState() -> Promise<(currentSignedAmount: BigUInt, nonce: BigUInt)> {
+    fileprivate func _currentChannelState() -> Promise<PaymentChannelState> {
         return firstly {
             self._serviceClient.getChannelState(channelId: self._channelId)
-        }.then { channelStateReply -> Promise<(currentSignedAmount: BigUInt, nonce: BigUInt)> in
+        }.then { channelStateReply -> Promise<PaymentChannelState> in
             let nonce = channelStateReply.currentNonce
             let currentSignedAmount = channelStateReply.currentSignedAmount
-            let channelState = (currentSignedAmount: BigUInt(currentSignedAmount), nonce: BigUInt(nonce))
-            return Promise<(currentSignedAmount: BigUInt, nonce: BigUInt)>.value(channelState)
+            let channelState = PaymentChannelState(nonce: BigUInt(nonce),
+                                                   currentSignedAmount: BigUInt(currentSignedAmount),
+                                                   plannedAmount: try! BigUInt(channelStateReply.plannedAmount),
+                                                   usedAmount: try! BigUInt(channelStateReply.usedAmount))
+            
+            return Promise<PaymentChannelState>.value(channelState)
         }
     }
 }

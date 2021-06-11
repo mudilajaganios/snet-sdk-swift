@@ -287,6 +287,8 @@ class MPEContract {
         }
     }
     
+    //MARK: Private methods
+    
     private func _getOpenChannelId(channelId: BigInt, groupId: String, address: EthereumAddress) -> Promise<BigInt> {
         if channelId < 0 {
             return Promise<BigInt>.value(channelId)
@@ -315,8 +317,6 @@ class MPEContract {
             return self._getOpenChannelId(channelId: channelId - 1, groupId: groupId, address: address)
         }
     }
-    
-    //MARK: Private methods
     
     private func _fundEscrowAccount(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
         let accountAddress = account.getAddress()
