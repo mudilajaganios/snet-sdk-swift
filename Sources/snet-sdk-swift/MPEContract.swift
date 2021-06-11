@@ -173,20 +173,22 @@ class MPEContract {
     }
     
     func channelAddFunds(account: Account, channelId: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
-        self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
-        
-        guard let contract = self._mpeContract,
-              let channelAddFunds = contract["channelAddFunds"] else {
-            return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+        return firstly {
+            self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
+        }.then { _ -> Promise<EthereumData> in
+            guard let contract = self._mpeContract,
+                  let channelAddFunds = contract["channelAddFunds"] else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
             }
+            let operation = channelAddFunds(channelId, amountInCogs.description)
+            return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
-        let operation = channelAddFunds(channelId, amountInCogs.description)
-        return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
     func channelExtend(account: Account, channelId: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
@@ -205,20 +207,22 @@ class MPEContract {
     }
     
     func channelExtendAndAddFunds(account: Account, channelId: BigUInt, expiry: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
-        self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
-        
-        guard let contract = self._mpeContract,
-              let channelExtendAndAddFunds = contract["channelExtendAndAddFunds"] else {
-            return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+        return firstly {
+            self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
+        }.then { _ -> Promise<EthereumData> in
+            guard let contract = self._mpeContract,
+                  let channelExtendAndAddFunds = contract["channelExtendAndAddFunds"] else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                    error.reject(genericError)
+                }
             }
+            let operation = channelExtendAndAddFunds(channelId, expiry.description, amountInCogs.description)
+            return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
-        let operation = channelExtendAndAddFunds(channelId, expiry.description, amountInCogs.description)
-        return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
     func channelClaimTimeout(account: Account, channelId: BigUInt) -> Promise<EthereumData> {
@@ -252,11 +256,8 @@ class MPEContract {
     
     func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: EthereumQuantity? = nil) -> Promise<[PaymentChannel]> {
         let address = account.getAddress()
-        guard let paymentaddress = service.group["payment_address"] as? String,
-              let recipientAddress = EthereumAddress(hexString: paymentaddress) else {
-            return Promise<[PaymentChannel]>.value([])
-        }
-        guard let groupId = service.group["group_id_in_bytes"] as? [UInt8] else {
+
+        guard let groupId = service.group["group_id"] as? String else {
             return Promise<[PaymentChannel]>.value([])
         }
         
@@ -264,80 +265,77 @@ class MPEContract {
             return Promise<[PaymentChannel]>.value([])
         }
         
-//        let channelOpenEvent = contract.events.first(where: { $0.name == "ChannelOpen" })
-        
         return firstly {
             self._deploymentBlockNumber(startingBlockNumber: startingBlockNumber)
         }.then{ fromBlock -> Promise<[String: Any]> in
            return contract["nextChannelId"]!().call()
-            
-//            let options = inputParams(filter: ["sender": address.hex(eip55: false),
-//                                               "recipient": recipientAddress.hex(eip55: false),
-//                                               "groupId": groupId.description], fromBlock: fromBlock.hex(), toBlock: "latest")
-//
-//                let req = RPCRequest<inputParams>(
-//                    id: self._web3Instance.properties.rpcId,
-//                    jsonrpc: Web3.jsonrpc,
-//                    method: "eth_getLogs",
-//                    params: options
-//                )
-//
-//            self.getEvents(req: req) { response in
-//                print(response)
-//            }
-            
-//            guard let filterOptions = options as? ABIEncodable else  {
-//                return Promise { error in
-//                    let genericError = NSError(
-//                        domain: "snet-sdk",
-//                        code: 0,
-//                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-//                    error.reject(genericError)
-//                }
-//            }
-            
-//            return SolidityEmittedEvent(name: "ChannelOpen", values: [:]).promise
-            
-//            return channelOpenEvent . . getPastEvents("ChannelOpen", filterOptions).call()
-        }.then { (nextChannelID) -> Promise<[PaymentChannel]> in
-            guard let nextChannelId = nextChannelID.values.first as? BigUInt, nextChannelId > 1 else { return Promise<[PaymentChannel]>.value([]) }
-            
+        }.then({ (nextChannelID) -> Promise<BigInt> in
+            guard let nextChannelId = nextChannelID.values.first as? BigUInt, nextChannelId > 0 else { return Promise<BigInt>.value(-1) }
+            return self._getOpenChannelId(channelId: BigInt(nextChannelId) - 1, groupId: groupId, address: address)
+        }).then { (openChannelId) -> Promise<[PaymentChannel]> in
+            if openChannelId < 0 {
+                return Promise<[PaymentChannel]>.value([])
+            }
             return Promise { paymentchannels in
-//                let channels: [PaymentChannel] = channelsOpened.filter({ $0.key == "returnValues" }).map {
-//                    let returnValues = $0.value as? [String: Any]
-//                    let channelId = returnValues?["channelId"] as? String
-//TODO: Make Sure a currect implementation for the channel
-                let channels: [PaymentChannel] =  [PaymentChannel(channelId: 2,//nextChannelId - 1,
+                let channels: [PaymentChannel] =  [PaymentChannel(channelId: BigUInt(openChannelId),
                                           web3: self._web3Instance,
                                           account: account,
                                           service: service,
                                           mpeContract: self)]
-//                }
-
                 return paymentchannels.fulfill(channels)
             }
         }
     }
     
-    //MARK: Private methods
-    
-    private func _fundEscrowAccount(account: Account, amountInCogs: BigUInt) {
-        let accountAddress = account.getAddress()
-        firstly {
-            self.balance(of: accountAddress)
-        }.done { accountbalance in
-            guard let currentEscrowBalance = accountbalance["currentEscrowBalance"] as? BigUInt else  { return }
-            if amountInCogs > currentEscrowBalance {
-                account.depositToEscrowAccount(amountInCogs: amountInCogs - currentEscrowBalance)
+    private func _getOpenChannelId(channelId: BigInt, groupId: String, address: EthereumAddress) -> Promise<BigInt> {
+        if channelId < 0 {
+            return Promise<BigInt>.value(channelId)
+        }
+        return firstly {
+            self.channels(channelId: BigUInt(channelId))
+        }.then { channelInfo -> Promise<BigInt> in
+            guard let groupIdData = channelInfo["groupId"] as? Data,
+                  let senderAddress = channelInfo["sender"] as? EthereumAddress,
+                  let signerAddress = channelInfo["signer"] as? EthereumAddress,
+                  let recipientAddress = channelInfo["recipient"] as? EthereumAddress else {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not retrieve channel information"])
+                    error.reject(genericError)
+                }
             }
+            
+            let groupIdString = groupIdData.base64EncodedString()
+            if (address == senderAddress || address == signerAddress || address == recipientAddress) && groupIdString == groupId {
+                return Promise<BigInt>.value(channelId)
+            }
+            
+            return self._getOpenChannelId(channelId: channelId - 1, groupId: groupId, address: address)
         }
     }
     
-    func getEvents(
-        req: RPCRequest<inputParams>,
-        response: @escaping Web3ResponseCompletion<EthereumData>
-    ) {
-        self._web3Instance.properties.provider.send(request: req, response: response)
+    //MARK: Private methods
+    
+    private func _fundEscrowAccount(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+        let accountAddress = account.getAddress()
+        return firstly {
+            self.balance(of: accountAddress)
+        }.then { accountbalance -> Promise<EthereumData> in
+            guard let currentEscrowBalance = accountbalance["currentEscrowBalance"] as? BigUInt else  {
+                return Promise { error in
+                    let genericError = NSError(
+                        domain: "snet-sdk",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not get the current Escrow Balance"])
+                    error.reject(genericError)
+                } }
+            if amountInCogs > currentEscrowBalance {
+                return account.depositToEscrowAccount(amountInCogs: amountInCogs - currentEscrowBalance)
+            }
+            return Promise<EthereumData>.value(EthereumData([]))
+        }
     }
     
     private func _deploymentBlockNumber(startingBlockNumber: EthereumQuantity? = nil) -> Promise<EthereumQuantity> {

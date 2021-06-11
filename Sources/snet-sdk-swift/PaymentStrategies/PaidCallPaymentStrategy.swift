@@ -34,18 +34,17 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
                 
                 let metadata = [["snet-payment-type": "escrow"],
                                 ["snet-payment-channel-id": channel.channelId.description],
-                                ["snet-payment-channel-nonce": nonce.description ],
-                                ["snet-payment-channel-amount": amount.description ],
-                                ["snet-payment-channel-signature-bin": signature ]]
+                                ["snet-payment-channel-nonce": nonce.description],
+                                ["snet-payment-channel-amount": amount.description],
+                                ["snet-payment-channel-signature-bin": signature]]
                 metadatapromise.fulfill(metadata)
             }
         }
     }
     
     func _generateSignature(channelId: BigUInt, nonce: BigUInt, amount: BigUInt) -> String {
-        
         let hexString = "__MPE_claim_message".tohexString()
-            + self._serviceClient.mpeContract.address!.hex(eip55: false) // Address field
+            + self._serviceClient.mpeContract.address!.hex(eip55: false).replacingOccurrences(of: "0x", with: "")
             + String(channelId, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             + String(nonce, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             + String(amount, radix: 16).paddingLeft(toLength: 64, withPad: "0")
