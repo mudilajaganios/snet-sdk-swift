@@ -134,15 +134,16 @@ public final class Account {
     public func sendTransaction(toAddress: EthereumAddress, operation: SolidityInvocation) -> Promise<EthereumData> {
         let address = self.getAddress()
         let gasPricePromise = self._web3Instance.eth.gasPrice()
-        let estimatedGasPricePromise = operation.estimateGas(from: address)
+        let gasLimitPromise = operation.estimateGas(from: address)
         let noncePromise = self._transactionCount()
         
         return firstly {
-            when(fulfilled: gasPricePromise, estimatedGasPricePromise, noncePromise)
-        }.then { (gasPrice, estimatedGasPrice, nonce) -> Promise<EthereumData> in
+            when(fulfilled: gasPricePromise, gasLimitPromise, noncePromise)
+        }.then { (gasPrice, gasLimit, nonce) -> Promise<EthereumData> in
             guard let transaction = operation.createTransaction(nonce: nonce,
-                                                                 from: address, value: 0,
-                                                                 gas: estimatedGasPrice,
+                                                                 from: address,
+                                                                 value: 0,
+                                                                 gas: gasLimit,
                                                                  gasPrice: gasPrice) else {
                 return Promise { error in
                     let genericError = NSError(

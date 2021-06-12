@@ -166,8 +166,7 @@ class MPEContract {
                 error.reject(genericError)
             } }
             let signerAddress = account.getSignerAddress()
-            let operation = depositAndOpenChannel(signerAddress, recipientAddress, groupId,
-                                                        amountInCogs, expiry)
+            let operation = depositAndOpenChannel(signerAddress, recipientAddress, groupId, amountInCogs, expiry)
             return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
     }
