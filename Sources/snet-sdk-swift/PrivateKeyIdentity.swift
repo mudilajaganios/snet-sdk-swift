@@ -165,5 +165,4 @@ extension RLPItem {
             .bytes(data.bytes)
         )
     }
-    
 }
