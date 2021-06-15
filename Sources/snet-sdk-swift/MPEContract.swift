@@ -322,7 +322,7 @@ class MPEContract: MPEContractProtocol {
         return firstly {
             self.balance(of: accountAddress)
         }.then { accountbalance -> Promise<EthereumData> in
-            guard let currentEscrowBalance = accountbalance["currentEscrowBalance"] as? BigUInt else  {
+            guard let currentEscrowBalance = accountbalance.first?.value as? BigUInt else  {
                 return Promise { error in
                     let genericError = NSError(
                         domain: "snet-sdk",
