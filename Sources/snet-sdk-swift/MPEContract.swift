@@ -11,7 +11,7 @@ import Web3ContractABI
 import Web3PromiseKit
 import snet_contracts
 
-class MPEContract {
+class MPEContract: MPEContractProtocol {
     
     private let _web3Instance: Web3
     private let _networkId: String
@@ -57,7 +57,7 @@ class MPEContract {
         return balances(address).call()
     }
     
-    func deposit(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func deposit(account: AccountProtocol, amountInCogs: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let deposit = contract["deposit"] else {
             return Promise { error in
@@ -72,7 +72,7 @@ class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    func withdraw(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func withdraw(account: AccountProtocol, amountInCogs: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let withdraw = contract["withdraw"] else {
             return Promise { error in
@@ -87,7 +87,7 @@ class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    func openChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
+    func openChannel(account: AccountProtocol, service: ServiceClientStateProtocol, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let openChannel = contract["openChannel"] else {
             return Promise { error in
@@ -119,7 +119,7 @@ class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    func depositAndOpenChannel(account: Account, service: ServiceClient, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
+    func depositAndOpenChannel(account: AccountProtocol, service: ServiceClientStateProtocol, amountInCogs: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
         //Approve the amount
         return firstly {
             //Check account allowance
@@ -133,7 +133,7 @@ class MPEContract {
                 error.reject(genericError)
             } }
             
-            if amountInCogs > approvedAmount {
+            if BigUInt.compare(amountInCogs, approvedAmount) == .orderedDescending {
                 return account.approveTransfer(amountInCogs: amountInCogs).asVoid()
             } else {
                 return Promise.value
@@ -171,7 +171,7 @@ class MPEContract {
         }
     }
     
-    func channelAddFunds(account: Account, channelId: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func channelAddFunds(account: AccountProtocol, channelId: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
         return firstly {
             self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
         }.then { _ -> Promise<EthereumData> in
@@ -190,7 +190,7 @@ class MPEContract {
         }
     }
     
-    func channelExtend(account: Account, channelId: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
+    func channelExtend(account: AccountProtocol, channelId: BigUInt, expiry: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let channelExtend = contract["channelExtend"] else {
             return Promise { error in
@@ -205,7 +205,7 @@ class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    func channelExtendAndAddFunds(account: Account, channelId: BigUInt, expiry: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func channelExtendAndAddFunds(account: AccountProtocol, channelId: BigUInt, expiry: BigUInt, amountInCogs: BigUInt) -> Promise<EthereumData> {
         return firstly {
             self._fundEscrowAccount(account: account, amountInCogs: amountInCogs)
         }.then { _ -> Promise<EthereumData> in
@@ -224,7 +224,7 @@ class MPEContract {
         }
     }
     
-    func channelClaimTimeout(account: Account, channelId: BigUInt) -> Promise<EthereumData> {
+    func channelClaimTimeout(account: AccountProtocol, channelId: BigUInt) -> Promise<EthereumData> {
         guard let contract = self._mpeContract,
               let channelClaimTimeout = contract["channelClaimTimeout"] else {
             return Promise { error in
@@ -239,7 +239,7 @@ class MPEContract {
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
-    func channels(channelId: BigUInt) -> Promise<[String: Any]>{
+    func channels(channelId: BigUInt) -> Promise<[String: Any]> {
         guard let contract = self._mpeContract,
               let channels = contract["channels"] else {
             return Promise { error in
@@ -253,7 +253,7 @@ class MPEContract {
         return channels(channelId).call()
     }
     
-    func getPastOpenChannels(account: Account, service: ServiceClient, startingBlockNumber: EthereumQuantity? = nil) -> Promise<[PaymentChannel]> {
+    func getPastOpenChannels(account: AccountProtocol, service: ServiceClientStateProtocol, startingBlockNumber: EthereumQuantity? = nil) -> Promise<[PaymentChannel]> {
         let address = account.getAddress()
 
         guard let groupId = service.group["group_id"] as? String else {
@@ -317,7 +317,7 @@ class MPEContract {
         }
     }
     
-    private func _fundEscrowAccount(account: Account, amountInCogs: BigUInt) -> Promise<EthereumData> {
+    private func _fundEscrowAccount(account: AccountProtocol, amountInCogs: BigUInt) -> Promise<EthereumData> {
         let accountAddress = account.getAddress()
         return firstly {
             self.balance(of: accountAddress)
@@ -330,7 +330,7 @@ class MPEContract {
                         userInfo: [NSLocalizedDescriptionKey: "Could not get the current Escrow Balance"])
                     error.reject(genericError)
                 } }
-            if amountInCogs > currentEscrowBalance {
+            if BigUInt.compare(amountInCogs, currentEscrowBalance) == .orderedDescending {
                 return account.depositToEscrowAccount(amountInCogs: amountInCogs - currentEscrowBalance)
             }
             return Promise<EthereumData>.value(EthereumData([]))

@@ -14,8 +14,8 @@ public class SnetSDK {
     
     private let _web3: Web3
     private let _metadataProvider: IPFSMetadataProvider
-    private let _mpeContract: MPEContract
-    private let _account: Account
+    private let _mpeContract: MPEContractProtocol
+    private let _account: AccountProtocol
     
     private var _paymentChannelManagementStrategy: PaymentStrategyProtocol?
     
@@ -35,7 +35,7 @@ public class SnetSDK {
         return self._web3
     }
     
-    public var account: Account {
+    var account: AccountProtocol {
         return self._account
     }
     

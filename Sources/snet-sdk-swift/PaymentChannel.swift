@@ -21,12 +21,12 @@ class PaymentChannel {
     
     private let _web3Instance: Web3
     private let _channelId: BigUInt
-    private unowned let _mpeContract: MPEContract
-    private unowned let _account: Account
-    private unowned let _serviceClient: ServiceClient
+    private let _mpeContract: MPEContractProtocol
+    private let _account: AccountProtocol
+    private let _serviceClient: ServiceClientStateProtocol
     private var _state: [String: BigUInt]
     
-    init(channelId: BigUInt, web3: Web3, account: Account, service: ServiceClient, mpeContract: MPEContract) {
+    init(channelId: BigUInt, web3: Web3, account: AccountProtocol, service: ServiceClientStateProtocol, mpeContract: MPEContractProtocol) {
         self._channelId = channelId
         self._web3Instance = web3
         self._account = account

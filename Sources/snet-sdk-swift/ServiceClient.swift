@@ -14,10 +14,10 @@ import GRPC
 import NIO
 import NIOHPACK
 
-class ServiceClient: ServiceClientProtocol {
+class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
     
     private let _sdk: SnetSDK
-    private let _mpeContract: MPEContract
+    private let _mpeContract: MPEContractProtocol
     private let _options: [String: Any]
     private var _metadata: [String: Any]
     private var _group: [String: Any]
@@ -27,7 +27,7 @@ class ServiceClient: ServiceClientProtocol {
     
     private var _lastReadBlock: EthereumQuantity?
     
-    init(sdk: SnetSDK, orgId: String, serviceId: String, mpeContract: MPEContract,
+    init(sdk: SnetSDK, orgId: String, serviceId: String, mpeContract: MPEContractProtocol,
          metadata: [String: Any], group: [String: Any],
          paymentChannelManagementStrategy: PaymentStrategyProtocol? = nil,
          options: [String: Any] = [:]) {
@@ -53,7 +53,7 @@ class ServiceClient: ServiceClientProtocol {
     }
     
     //MARK: Publicly accessible properties
-    var mpeContract: MPEContract {
+    var mpeContract: MPEContractProtocol {
         return self._mpeContract
     }
     
@@ -77,7 +77,7 @@ class ServiceClient: ServiceClientProtocol {
         return self._group
     }
     
-    var account: Account {
+    var account: AccountProtocol {
         return self._sdk.account
     }
     
@@ -301,8 +301,6 @@ class ServiceClient: ServiceClientProtocol {
                 String(blockNumber.quantity, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             
             let signature = self.account.sign(dataToSign: datahex)
-//            let hexBytes = signature.hexToBytes()
-//            signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
             var properties: [String: Any] = [:]
             properties["currentBlockNumber"] = blockNumber.quantity
             properties["signatureBytes"] = signature

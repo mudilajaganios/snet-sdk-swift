@@ -13,15 +13,14 @@ import PromiseKit
 import snet_contracts
 import CryptoSwift
 
-public final class Account {
-    
+class Account: AccountProtocol {
     private let _web3Instance: Web3
-    private unowned let _mpeContract: MPEContract
+    private let _mpeContract: MPEContractProtocol
     private var _tokenContract: DynamicContract!
     private var _ethereumAddress: EthereumAddress!
-    private let _identity: PrivateKeyIdentity
+    private let _identity: PrivateKeyIdentityProtocol
     
-    init(web3: Web3, networkId: String, mpeContract: MPEContract, identity: PrivateKeyIdentity) {
+    init(web3: Web3, networkId: String, mpeContract: MPEContractProtocol, identity: PrivateKeyIdentityProtocol) {
         self._web3Instance = web3
         self._mpeContract = mpeContract
         self._identity = identity
@@ -42,18 +41,17 @@ public final class Account {
         self._tokenContract = tokenContract
     }
     
-    public func balance() -> Promise<[String: Any]> {
+    func balance() -> Promise<[String: Any]> {
         let address = self._identity.getAddress()
         return self._tokenContract["balanceOf"]!(address).call()
     }
     
-    public func escrowBalance() -> Promise<[String: Any]> {
+    func escrowBalance() -> Promise<[String: Any]> {
         let address = self.getAddress()
         return self._mpeContract.balance(of: address)
     }
     
-    
-    public func depositToEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func depositToEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
         return firstly {
             self.allowance()
         }.then { (alreadyApprovedAmount) -> Promise<EthereumData> in
@@ -66,7 +64,7 @@ public final class Account {
                     error.reject(genericError)
                 }
             }
-            if amountInCogs > alreadyapprovedAmt {
+            if BigUInt.compare(amountInCogs, alreadyapprovedAmt) == .orderedDescending {
                 return self.approveTransfer(amountInCogs: amountInCogs)
             } else {
                 return Promise { none in
@@ -86,7 +84,7 @@ public final class Account {
         }
     }
     
-    public func approveTransfer(amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func approveTransfer(amountInCogs: BigUInt) -> Promise<EthereumData> {
         guard let approve = self._tokenContract["approve"],
               let mpeAddress = self._mpeContract.address,
               let tokenContractAddress = self._tokenContract.address else {
@@ -101,7 +99,7 @@ public final class Account {
         return self.sendTransaction(toAddress: tokenContractAddress, operation: approve(mpeAddress, amountInCogs))
     }
     
-    public func allowance() -> Promise<[String: Any]> {
+    func allowance() -> Promise<[String: Any]> {
         let address = self.getAddress()
         guard let mpeAddress = self._mpeContract.address else {
             return Promise { error in
@@ -115,15 +113,15 @@ public final class Account {
         return self._tokenContract["allowance"]!(address, mpeAddress).call()
     }
     
-    public func withdrawFromEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
+    func withdrawFromEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
         return self._mpeContract.withdraw(account: self, amountInCogs: amountInCogs)
     }
     
-    public func getAddress() -> EthereumAddress {
+    func getAddress() -> EthereumAddress {
         return self._identity.getAddress()
     }
     
-    public func getSignerAddress() -> EthereumAddress {
+    func getSignerAddress() -> EthereumAddress {
         return self.getAddress()
     }
     
@@ -131,7 +129,7 @@ public final class Account {
         return self._identity.signData(message: dataToSign)
     }
     
-    public func sendTransaction(toAddress: EthereumAddress, operation: SolidityInvocation) -> Promise<EthereumData> {
+    func sendTransaction(toAddress: EthereumAddress, operation: SolidityInvocation) -> Promise<EthereumData> {
         let address = self.getAddress()
         let gasPricePromise = self._web3Instance.eth.gasPrice()
         let gasLimitPromise = operation.estimateGas(from: address)
@@ -160,5 +158,9 @@ public final class Account {
     private func _transactionCount() -> Promise<EthereumQuantity> {
         let address = self.getAddress()
         return self._web3Instance.eth.getTransactionCount(address: address, block: .latest)
+    }
+    
+    deinit {
+        print("Deinit Account")
     }
 }
