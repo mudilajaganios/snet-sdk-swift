@@ -10,6 +10,6 @@ import BigInt
 import PromiseKit
 
 protocol PaymentChannelProtocol {
-    func getPaymentMetadata() -> Promise<[[String: Any]]>
+    func getPaymentMetadata(selectedChannel: Int?) -> Promise<[[String: Any]]>
     func _getPrice() -> BigUInt
 }

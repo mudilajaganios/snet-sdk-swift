@@ -221,8 +221,9 @@ class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
     
     private static func _enhanceGroupInfo(group: [String: Any]) -> [String: Any] {
         var enhancedGroup = group
-        if let groupID = group["group_id"] as? String {
-            enhancedGroup["group_id_in_bytes"] = groupID.utf8toHexBytes()
+        if let groupID = group["group_id"] as? String,
+           let groupIdBytes = Data(base64Encoded: groupID)?.bytes {
+            enhancedGroup["group_id_in_bytes"] = groupIdBytes
         }
         if let payment = group["payment"] as? [String: Any] {
             enhancedGroup["payment_address"] = payment["payment_address"]

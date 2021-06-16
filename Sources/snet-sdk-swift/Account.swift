@@ -101,6 +101,7 @@ class Account: AccountProtocol {
     
     func allowance() -> Promise<[String: Any]> {
         let address = self.getAddress()
+        
         guard let mpeAddress = self._mpeContract.address else {
             return Promise { error in
                 let genericError = NSError(

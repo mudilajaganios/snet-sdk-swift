@@ -11,7 +11,7 @@ import PromiseKit
 
 class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
     
-    override func getPaymentMetadata() -> Promise<[[String : Any]]> {
+    override func getPaymentMetadata(selectedChannel: Int? = nil) -> Promise<[[String : Any]]> {
         return firstly {
             self._selectChannel()
         }.then { (channel) -> Promise<[[String : Any]]> in

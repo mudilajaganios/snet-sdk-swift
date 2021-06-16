@@ -18,9 +18,9 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
         super.init(serviceClient: serviceClient, blockOffset: BigUInt(blockOffset), callAllowance: BigUInt(callAllowance))
     }
     
-    override func getPaymentMetadata() -> Promise<[[String : Any]]> {
+    override func getPaymentMetadata(selectedChannel: Int? = nil) -> Promise<[[String : Any]]> {
         return firstly {
-            self._selectChannel()
+            self._selectChannel(_preselectedChannel: selectedChannel)
         }.then({ channel -> Promise<(PaymentChannel, String)> in
             let concurrentCallsPrice = self._getPrice()
             return self._concurrencyManager.getToken(channel: channel,

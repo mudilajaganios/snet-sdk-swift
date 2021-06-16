@@ -11,10 +11,9 @@ import Web3
 import PromiseKit
 
 class BasePaidPaymentStrategy: PaymentChannelProtocol {
-    func getPaymentMetadata() -> Promise<[[String : Any]]> {
+    func getPaymentMetadata(selectedChannel: Int? = nil) -> Promise<[[String : Any]]> {
         return Promise.value([])
     }
-    
     
     let _serviceClient: ServiceClient
     let _blockOffset: BigUInt
@@ -26,7 +25,7 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
         self._callAllowance = callAllowance;
     }
     
-    func _selectChannel() -> Promise<PaymentChannel> {
+    func _selectChannel(_preselectedChannel: Int? = nil) -> Promise<PaymentChannel> {
         let account = self._serviceClient.account
         let serviceCallPrice = self._getPrice()
         
@@ -47,10 +46,15 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
                 }
             }
             return self._serviceClient.defaultChannelExpiration().then { defaultExpiration -> Promise<(BigUInt, BigUInt)> in
-               return Promise<(BigUInt, BigUInt)>.value((mpeBalance, defaultExpiration))
+                return Promise<(BigUInt, BigUInt)>.value((mpeBalance, defaultExpiration))
             }
         }.then { (mpeBalance, defaultExpiration) -> Promise<PaymentChannel> in
             let extendedExpiry = defaultExpiration + self._blockOffset
+            
+            if let selectedChannelId = _preselectedChannel,
+               let selectedChannel = self._serviceClient.paymentChannels.first(where: { $0.channelId == selectedChannelId }) {
+                return Promise<PaymentChannel>.value(selectedChannel)
+            }
             
             let promise: Promise<PaymentChannel>?
             

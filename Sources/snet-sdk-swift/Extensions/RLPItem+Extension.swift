@@ -23,7 +23,8 @@ extension RLPItem {
         gasPrice: EthereumQuantity,
         gasLimit: EthereumQuantity,
         to: EthereumAddress?,
-        data: EthereumData
+        data: EthereumData,
+        chainId: UInt
     ) {
         self = .array(
             .bigUInt(nonce.quantity),
@@ -31,7 +32,10 @@ extension RLPItem {
             .bigUInt(gasLimit.quantity),
             .bytes(to?.rawAddress ?? Bytes()),
             .string(""),
-            .bytes(data.bytes)
+            .bytes(data.bytes),
+            .init(integerLiteral: chainId),
+            .init(integerLiteral: 0),
+            .init(integerLiteral: 0)
         )
     }
 }

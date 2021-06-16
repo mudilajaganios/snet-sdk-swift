@@ -125,13 +125,7 @@ class MPEContract: MPEContractProtocol {
             //Check account allowance
             account.allowance()
         }.then { (allowance) -> Promise<Void> in
-            guard let approvedAmount = allowance.first?.value as? BigUInt else { return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unable to fetch approved amount"])
-                error.reject(genericError)
-            } }
+            let approvedAmount = (allowance.values.first as? BigUInt) ?? BigUInt(0)
             
             if BigUInt.compare(amountInCogs, approvedAmount) == .orderedDescending {
                 return account.approveTransfer(amountInCogs: amountInCogs).asVoid()

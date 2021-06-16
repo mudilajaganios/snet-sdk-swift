@@ -20,7 +20,8 @@ public class SnetSDK {
     private var _paymentChannelManagementStrategy: PaymentStrategyProtocol?
     
     public init(config: SDKConfig, metadataProvider: IPFSMetadataProvider? = nil) {
-        let web3 = Web3(provider: Web3HttpProvider(rpcURL: config.web3Provider))
+        let rpcId = Int(config.networkId) ?? 1
+        let web3 = Web3(rpcURL: config.web3Provider, rpcId: rpcId)
         self._web3 = web3
         let mpeContract = MPEContract(web3: web3, networkId: config.networkId)
         self._mpeContract = mpeContract
