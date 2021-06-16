@@ -53,53 +53,53 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
         return ""
     }
     
-    func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
-        do {
-            let signedTransaction = try transactionObject.signX(with: self.privateKey!, chainId: _web3.properties.rpcId)
-            return _web3.eth.sendRawTransaction(transaction: signedTransaction)
-        } catch {
-            return Promise { error in
-              let genericError = NSError(
-                  domain: "snet-sdk",
-                  code: 0,
-                  userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
-              error.reject(genericError)
-            }
-        }
-    }
-    
 //    func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
 //        do {
 //            let signedTransaction = try transactionObject.signX(with: self.privateKey!, chainId: _web3.properties.rpcId)
-//
-//            return firstly {
-//                self._web3.eth.sendRawTransaction(transaction: signedTransaction)
-//            }.then { transactionHash -> Promise<EthereumTransactionReceiptObject?> in
-//                return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
-//            }.then { receiptObject -> Promise<EthereumData> in
-//                guard let status = receiptObject?.status?.quantity, status == 1,
-//                      let transactionHash = receiptObject?.transactionHash else {
-//                    return Promise { error in
-//                        let genericError = NSError(
-//                            domain: "snet-sdk",
-//                            code: 0,
-//                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-//                        error.reject(genericError)
-//                    }
-//                }
-//
-//                return Promise<EthereumData>.value(transactionHash)
-//            }
+//            return _web3.eth.sendRawTransaction(transaction: signedTransaction)
 //        } catch {
 //            return Promise { error in
-//                let genericError = NSError(
-//                    domain: "snet-sdk",
-//                    code: 0,
-//                    userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
-//                error.reject(genericError)
+//              let genericError = NSError(
+//                  domain: "snet-sdk",
+//                  code: 0,
+//                  userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
+//              error.reject(genericError)
 //            }
 //        }
 //    }
+    
+    func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
+        do {
+            let signedTransaction = try transactionObject.signX(with: self.privateKey!, chainId: _web3.properties.rpcId)
+
+            return firstly {
+                self._web3.eth.sendRawTransaction(transaction: signedTransaction)
+            }.then { transactionHash -> Promise<EthereumTransactionReceiptObject?> in
+                return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
+            }.then { receiptObject -> Promise<EthereumData> in
+                guard let status = receiptObject?.status?.quantity, status == 1,
+                      let transactionHash = receiptObject?.transactionHash else {
+                    return Promise { error in
+                        let genericError = NSError(
+                            domain: "snet-sdk",
+                            code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                        error.reject(genericError)
+                    }
+                }
+
+                return Promise<EthereumData>.value(transactionHash)
+            }
+        } catch {
+            return Promise { error in
+                let genericError = NSError(
+                    domain: "snet-sdk",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
+                error.reject(genericError)
+            }
+        }
+    }
     
     private func _setupAccount() {
         guard let privateKey = self.privateKey else { return }

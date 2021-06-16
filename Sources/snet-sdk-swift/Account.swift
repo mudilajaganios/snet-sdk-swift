@@ -54,8 +54,8 @@ class Account: AccountProtocol {
     func depositToEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
         return firstly {
             self.allowance()
-        }.then { (alreadyApprovedAmount) -> Promise<EthereumData> in
-            guard let alreadyapprovedAmt = alreadyApprovedAmount[""] as? BigUInt else {
+        }.then { (alreadyApprovedAmount) -> Promise<Void> in
+            guard let alreadyapprovedAmt = alreadyApprovedAmount.values.first as? BigUInt else {
                 return Promise { error in
                     let genericError = NSError(
                         domain: "snet-sdk",
@@ -65,21 +65,11 @@ class Account: AccountProtocol {
                 }
             }
             if BigUInt.compare(amountInCogs, alreadyapprovedAmt) == .orderedDescending {
-                return self.approveTransfer(amountInCogs: amountInCogs)
+                return self.approveTransfer(amountInCogs: amountInCogs).asVoid()
             } else {
-                return Promise { none in
-                    guard let noneData = try? EthereumData(ethereumValue: EthereumValue(true)) else {
-                        let genericError = NSError(
-                            domain: "snet-sdk",
-                            code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                        none.reject(genericError)
-                        return
-                    }
-                    none.fulfill(noneData)
-                }
+                return Promise.value
             }
-        }.then { (_) -> Promise<EthereumData> in
+        }.then { _ -> Promise<EthereumData> in
            return self._mpeContract.deposit(account: self, amountInCogs: amountInCogs)
         }
     }

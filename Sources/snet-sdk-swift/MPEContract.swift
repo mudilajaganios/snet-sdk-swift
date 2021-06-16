@@ -179,7 +179,7 @@ class MPEContract: MPEContractProtocol {
                     error.reject(genericError)
                 }
             }
-            let operation = channelAddFunds(channelId, amountInCogs.description)
+            let operation = channelAddFunds(channelId, amountInCogs)
             return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
     }
@@ -195,7 +195,7 @@ class MPEContract: MPEContractProtocol {
                 error.reject(genericError)
             }
         }
-        let operation = channelExtend(channelId, expiry.description)
+        let operation = channelExtend(channelId, expiry)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -213,7 +213,7 @@ class MPEContract: MPEContractProtocol {
                     error.reject(genericError)
                 }
             }
-            let operation = channelExtendAndAddFunds(channelId, expiry.description, amountInCogs.description)
+            let operation = channelExtendAndAddFunds(channelId, expiry, amountInCogs)
             return account.sendTransaction(toAddress: self.address!, operation: operation)
         }
     }
