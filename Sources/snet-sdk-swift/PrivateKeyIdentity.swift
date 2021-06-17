@@ -9,8 +9,6 @@ import Foundation
 import Web3
 import Web3PromiseKit
 import PromiseKit
-import CryptoKit
-import CryptoSwift
 
 class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
     
@@ -37,36 +35,8 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
     }
     
     func signData(message: String) -> String {
-        do {
-            let hash = self.hash(message: message)
-            //Sign hash
-            guard let privateKey = self.privateKey else { return "" }
-            let signedMessage = try privateKey.sign(hash: hash)
-            
-            //Concatenating r s v values from the signature
-            let signature = "0x" + signedMessage.r.toHexString() + signedMessage.s.toHexString() + String(format:"%02x", signedMessage.v+27)
-            
-            return signature
-        } catch {
-            print(error)
-        }
-        return ""
+        return self.privateKey?.signData(message: message) ?? ""
     }
-    
-//    func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
-//        do {
-//            let signedTransaction = try transactionObject.signX(with: self.privateKey!, chainId: _web3.properties.rpcId)
-//            return _web3.eth.sendRawTransaction(transaction: signedTransaction)
-//        } catch {
-//            return Promise { error in
-//              let genericError = NSError(
-//                  domain: "snet-sdk",
-//                  code: 0,
-//                  userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
-//              error.reject(genericError)
-//            }
-//        }
-//    }
     
     func sendTransaction(transactionObject: EthereumTransaction) -> Promise<EthereumData> {
         do {
@@ -75,7 +45,7 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
             return firstly {
                 self._web3.eth.sendRawTransaction(transaction: signedTransaction)
             }.then { transactionHash -> Promise<EthereumTransactionReceiptObject?> in
-                return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
+                return self._getTransactionStatus(transactionHash: transactionHash)
             }.then { receiptObject -> Promise<EthereumData> in
                 guard let status = receiptObject?.status?.quantity, status == 1,
                       let transactionHash = receiptObject?.transactionHash else {
@@ -101,6 +71,25 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
         }
     }
     
+    private func _getTransactionStatus(transactionHash: EthereumData) -> Promise<EthereumTransactionReceiptObject?> {
+        return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
+            .recover { error -> Promise<EthereumTransactionReceiptObject?> in
+                if let error = error as? Web3Response<EthereumTransactionReceiptObject?>.Error,
+                   error.localizedDescription == Web3Response<EthereumTransactionReceiptObject?>.Error.emptyResponse.localizedDescription
+                {
+                    return self._getTransactionStatus(transactionHash: transactionHash)
+                } else {
+                    return Promise { error in
+                        let genericError = NSError(
+                            domain: "snet-sdk",
+                            code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: "Transaction failed"])
+                        error.reject(genericError)
+                    }
+                }
+            }
+    }
+    
     private func _setupAccount() {
         guard let privateKey = self.privateKey else { return }
         self._defaultAccount = privateKey.address
@@ -108,18 +97,5 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
     
     private var privateKey: EthereumPrivateKey? {
         return try? EthereumPrivateKey(hexPrivateKey: self._privateKey)
-    }
-    
-    fileprivate func hash(message: String) -> [UInt8] {
-        //Calculate hash Encoded bytes
-        let messagehash = SHA3(variant: .keccak256).calculate(for: message.hexToBytes())
-        let messageBuffer = Data(hex: messagehash.toHexString())
-        //Append preamble (UTF-8) bytes
-        let preambleString = "\u{19}Ethereum Signed Message:\n\(messagehash.count)"
-        guard var preambleBuffer = preambleString.data(using: .utf8) else { return [] }
-        preambleBuffer.append(messageBuffer)
-        //Calculate hash
-        let hash = SHA3(variant: .keccak256).calculate(for: preambleBuffer.bytes)
-        return hash
     }
 }

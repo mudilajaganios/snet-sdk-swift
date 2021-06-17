@@ -68,7 +68,7 @@ class MPEContract: MPEContractProtocol {
                 error.reject(genericError)
             }
         }
-        let operation = deposit(amountInCogs.description)
+        let operation = deposit(amountInCogs)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
@@ -83,7 +83,7 @@ class MPEContract: MPEContractProtocol {
                 error.reject(genericError)
             }
         }
-        let operation = withdraw(amountInCogs.description)
+        let operation = withdraw(amountInCogs)
         return account.sendTransaction(toAddress: self.address!, operation: operation)
     }
     
