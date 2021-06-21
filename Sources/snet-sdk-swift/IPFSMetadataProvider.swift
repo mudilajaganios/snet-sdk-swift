@@ -13,11 +13,11 @@ import PromiseKit
 import snet_contracts
 
 /// This class uses the HTTP API interface for the IPFS
-public final class IPFSMetadataProvider {
+class IPFSMetadataProvider {
     
     private let _web3Instance: Web3
     private let _ipfsEndpoint: String
-    private var _registryContract: DynamicContract?
+    private var _registryContract: DynamicContract!
     
     
     /// Initializes the Metadata provider
@@ -25,20 +25,24 @@ public final class IPFSMetadataProvider {
     ///   - web3: Requires the web3 instance
     ///   - networkId: Requires the network id eg. "1"
     ///   - ipfsEndpoint: Requires the IPFS endpoint eg. ipfs://singularity.io
-    init(web3: Web3, networkId: String, ipfsEndpoint: String) {
+    init(web3: Web3, networkId: String, ipfsEndpoint: String) throws {
         self._web3Instance = web3
         self._ipfsEndpoint = ipfsEndpoint
         
         let networkAddress = SNETContracts.shared.getNetworkAddress(networkId: networkId, contractType: .registry)
-
+        
         guard let abiContractData = SNETContracts.shared.abiContract(contractType: .registry) else {
             return
         }
-
+        
         let ethereumAddress = EthereumAddress(hexString: networkAddress)
-        self._registryContract = try? self._web3Instance.eth.Contract(json: abiContractData,
-                                                                      abiKey: nil,
-                                                                      address: ethereumAddress)
+        do {
+            self._registryContract = try self._web3Instance.eth.Contract(json: abiContractData,
+                                                                         abiKey: nil,
+                                                                         address: ethereumAddress)
+        } catch  {
+            throw SnetError.failedContractInit("Registry")
+        }
     }
     
     
@@ -50,11 +54,12 @@ public final class IPFSMetadataProvider {
     func metadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
         let orgMetadata = self._fetchOrgMetadata(orgId: orgId)
         let serviceMetadata = self._fetchServiceMetadata(orgId: orgId, serviceId: serviceId)
-
+        
         return firstly {
             when(fulfilled: orgMetadata, serviceMetadata)
         }.then { (orgmetadata, servicemetadata) -> Promise<[String: Any]> in
-           return self._enhanceServiceGroupDetails(serviceMetadata: servicemetadata, orgMetadata: orgmetadata)
+            print("Info: Service metdata is fetched from IPFS")
+            return self._enhanceServiceGroupDetails(serviceMetadata: servicemetadata, orgMetadata: orgmetadata)
         }
     }
     
@@ -64,25 +69,17 @@ public final class IPFSMetadataProvider {
     /// - Returns: Metadata promise
     fileprivate func _fetchOrgMetadata(orgId: String) -> Promise<[String: Any]> {
         guard let orgIDBytes = orgId.data(using: .utf8),
-              let contract = self._registryContract else {
+              let getOrganizationById = self._registryContract["getOrganizationById"] else {
             return Promise { error in
-                let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+                error.reject(SnetError.failedContractInit("Registry"))
             }
         }
         return firstly {
-            contract["getOrganizationById"]!(orgIDBytes).call()
+            getOrganizationById(orgIDBytes).call()
         }.then({ (data) -> Promise<[String: Any]> in
             guard let orgMetadataURI = data["orgMetadataURI"] as? Data else {
                 return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
-                    error.reject(genericError)
+                    error.reject(SnetError.dataNotAvailable("Unable to get organization URI from Registry contract"))
                 }
             }
             return self._fetchMetadataFromIpfs(metadataURI: orgMetadataURI)
@@ -98,26 +95,18 @@ public final class IPFSMetadataProvider {
     fileprivate func _fetchServiceMetadata(orgId: String, serviceId: String) -> Promise<[String: Any]> {
         guard let orgIDBytes = orgId.data(using: .utf8),
               let serviceIDBytes = serviceId.data(using: .utf8),
-              let contract = self._registryContract else {
+              let getServiceRegistrationById = self._registryContract["getServiceRegistrationById"] else {
             return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+                error.reject(SnetError.failedConversion("Improper Org ID/ Service ID, failed to convert to Bytes"))
             }
         }
         
         return firstly {
-            contract["getServiceRegistrationById"]!(orgIDBytes, serviceIDBytes).call()
+            getServiceRegistrationById(orgIDBytes, serviceIDBytes).call()
         }.then({ (data) -> Promise<[String: Any]> in
             guard let serviceMetadataURI = data["metadataURI"] as? Data else {
                 return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
+                    error.reject(SnetError.dataNotAvailable("Metadata URI is not found for Service ID"))
                 }
             }
             return self._fetchMetadataFromIpfs(metadataURI: serviceMetadataURI)
@@ -176,16 +165,12 @@ public final class IPFSMetadataProvider {
             
             URLSession.shared.dataTask(with: urlRequest) { (data, response, error) in
                 if error != nil {
-                    fetch.reject(error!)
+                    fetch.reject(SnetError.failedIPFSCall)
                 }
                 
                 guard let data = data,
                       let result = try? JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any] else {
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    fetch.reject(error ?? genericError)
+                    fetch.reject(SnetError.failedConversion("Failed to parse metadata from IPFS"))
                     return
                 }
                 

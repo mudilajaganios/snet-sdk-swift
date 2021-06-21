@@ -43,7 +43,10 @@ class Account: AccountProtocol {
     
     func balance() -> Promise<[String: Any]> {
         let address = self._identity.getAddress()
-        return self._tokenContract["balanceOf"]!(address).call()
+        guard let balanceOf = self._tokenContract["balanceOf"] else {
+            preconditionFailure("Balance of method not available in tokencontract")
+        }
+        return balanceOf(address).call()
     }
     
     func escrowBalance() -> Promise<[String: Any]> {
@@ -57,11 +60,7 @@ class Account: AccountProtocol {
         }.then { (alreadyApprovedAmount) -> Promise<Void> in
             guard let alreadyapprovedAmt = alreadyApprovedAmount.values.first as? BigUInt else {
                 return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
+                    error.reject(SnetError.dataNotAvailable("Couldn't fetch approved amount"))
                 }
             }
             if BigUInt.compare(amountInCogs, alreadyapprovedAmt) == .orderedDescending {
@@ -79,11 +78,7 @@ class Account: AccountProtocol {
               let mpeAddress = self._mpeContract.address,
               let tokenContractAddress = self._tokenContract.address else {
             return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+                error.reject(SnetError.dataNotAvailable("Couldn't get MPE contract address and token contract address"))
             }
         }
         return self.sendTransaction(toAddress: tokenContractAddress, operation: approve(mpeAddress, amountInCogs))
@@ -92,16 +87,13 @@ class Account: AccountProtocol {
     func allowance() -> Promise<[String: Any]> {
         let address = self.getAddress()
         
-        guard let mpeAddress = self._mpeContract.address else {
+        guard let mpeAddress = self._mpeContract.address,
+              let allowanceMethod = self._tokenContract["allowance"] else {
             return Promise { error in
-                let genericError = NSError(
-                          domain: "snet-sdk",
-                          code: 0,
-                          userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+                error.reject(SnetError.dataNotAvailable("Couldn't get MPE Contract Address"))
             }
         }
-        return self._tokenContract["allowance"]!(address, mpeAddress).call()
+        return allowanceMethod(address, mpeAddress).call()
     }
     
     func withdrawFromEscrowAccount(amountInCogs: BigUInt) -> Promise<EthereumData> {
@@ -138,7 +130,7 @@ class Account: AccountProtocol {
                     let genericError = NSError(
                         domain: "snet-sdk",
                         code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to create transaction for \(operation.method.name)"])
                     error.reject(genericError)
                 }
             }

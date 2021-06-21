@@ -46,8 +46,7 @@ class FreeCallPaymentStrategy {
                 
                 var signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
                 
-                let hexBytes = signature.hexToBytes()
-                signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
+                signature = signature.hextoBase64()
                 
                 var freeCallAuthToken = "0x" + tokenToMakeFreeCall
                 
@@ -78,8 +77,50 @@ class FreeCallPaymentStrategy {
                 let response = try freeCallStateServiceClient.getFreeCallsAvailable(request).response.wait()
                 return Promise.value(response)
             } catch let error {
-                print(error)
+                print("Warning: Error occurred while checking free calls availability. \nInner Error: \(error.localizedDescription)")
                 return Promise.value(Escrow_FreeCallStateReply())
+            }
+        }
+    }
+    
+    private func _getFreeCallStateRequest() -> Promise<Escrow_FreeCallStateRequest> {
+        return firstly {
+            self._getFreeCallStateRequestProperties()
+        }.then { (properties) -> Promise<Escrow_FreeCallStateRequest> in
+            return Promise { request in
+                var freecallStateRequest = Escrow_FreeCallStateRequest()
+                freecallStateRequest.userID = properties.userId
+                freecallStateRequest.tokenForFreeCall = properties.tokenforFreeCall
+                freecallStateRequest.tokenExpiryDateBlock = properties.expiryBlock
+                freecallStateRequest.signature = properties.signature
+                freecallStateRequest.currentBlock = properties.currentBlockNumber
+                request.fulfill(freecallStateRequest)
+            }
+        }
+    }
+    
+    private func _getFreeCallStateRequestProperties() -> Promise<FreeCallStateRequestProperties> {
+        return firstly {
+            self._serviceClient.getCurrentBlockNumber()
+        }.then { (currentBlockNumber) -> Promise<FreeCallStateRequestProperties> in
+            return Promise { promise in
+                
+                guard let freeCallConfiguration = self._serviceClient.getFreeCallConfiguration(),
+                      let currentBlock = try? UInt64(currentBlockNumber.quantity),
+                      let email = freeCallConfiguration["email"] as? String,
+                      let tokenToMakeFreeCall = freeCallConfiguration["tokenToMakeFreeCall"] as? String,
+                      let tokenExpiryDateBlock = freeCallConfiguration["tokenExpiryDateBlock"] as? Int else {
+                    promise.reject(SnetError.dataNotAvailable("Free call configuration is not provided/ not in valid format"))
+                    return
+                }
+                
+                let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
+                let properties = FreeCallStateRequestProperties(currentBlockNumber: currentBlock,
+                                                                signature: Data(hex: signature),
+                                                                userId: email,
+                                                                tokenforFreeCall: Data(hex: tokenToMakeFreeCall),
+                                                                expiryBlock: UInt64(tokenExpiryDateBlock))
+                promise.fulfill(properties)
             }
         }
     }
@@ -88,11 +129,15 @@ class FreeCallPaymentStrategy {
         guard let serviceDetails = self._serviceClient.getServiceDetails(),
               let orgId = serviceDetails["orgId"] as? String,
               let serviceId = serviceDetails["serviceId"] as? String,
-              let groupId = serviceDetails["groupId"] as? String else { return "" }
+              let groupId = serviceDetails["groupId"] as? String else {
+            print("Warning: Unable to read required service details. Empty signature will be generated")
+            return "" }
         
         guard let configuration = self._serviceClient.getFreeCallConfiguration(),
               let email = configuration["email"] as? String,
-              let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String else { return "" }
+              let tokenToMakeFreeCall = configuration["tokenToMakeFreeCall"] as? String else {
+            print("Warning: Unable to read required freecall details. Empty signature will be generated")
+            return "" }
         
         let hexString = "__prefix_free_trial".tohexString()
             + email.tohexString()
@@ -105,62 +150,11 @@ class FreeCallPaymentStrategy {
         return self._serviceClient.sign(dataToSign: hexString)
     }
     
-    private func _getFreeCallStateRequest() -> Promise<Escrow_FreeCallStateRequest> {
-        return firstly {
-            self._getFreeCallStateRequestProperties()
-        }.then { (properties) -> Promise<Escrow_FreeCallStateRequest> in
-            return Promise { request in
-                guard let userId = properties["userId"] as? String,
-                      let tokenForFreeCall = properties["tokenForFreeCall"] as? String,
-                      let tokenExpiryDateBlock = properties["tokenExpiryDateBlock"] as? Int,
-                      let signature = properties["signature"] as? String,
-                      let currentBlockNumber = properties["currentBlockNumber"] as? BigUInt else {
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to get properties"])
-                    request.reject(genericError)
-                    return
-                }
-                
-                var freecallStateRequest = Escrow_FreeCallStateRequest()
-                freecallStateRequest.userID = userId
-                freecallStateRequest.tokenForFreeCall = Data(hex: tokenForFreeCall)
-                freecallStateRequest.tokenExpiryDateBlock = UInt64(tokenExpiryDateBlock)
-                freecallStateRequest.signature = Data(hex: signature)
-                freecallStateRequest.currentBlock = try! UInt64(currentBlockNumber)
-                request.fulfill(freecallStateRequest)
-            }
-        }
-    }
-    
-    private func _getFreeCallStateRequestProperties() -> Promise<[String: Any]> {
-        return firstly {
-            self._serviceClient.getCurrentBlockNumber()
-        }.then { (currentBlockNumber) -> Promise<[String: Any]> in
-            return Promise { promise in
-                
-                guard let freeCallConfiguration = self._serviceClient.getFreeCallConfiguration(),
-                      let email = freeCallConfiguration["email"] as? String,
-                      let tokenToMakeFreeCall = freeCallConfiguration["tokenToMakeFreeCall"] as? String,
-                      let tokenExpiryDateBlock = freeCallConfiguration["tokenExpiryDateBlock"] as? Int else {
-                    
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
-                    promise.reject(genericError)
-                    return
-                }
-                
-                let signature = self._generateSignature(currentBlockNumber: currentBlockNumber.quantity)
-                let properties = ["currentBlockNumber": currentBlockNumber.quantity
-                                  ,"signature":signature
-                                  ,"userId":email
-                                  ,"tokenForFreeCall":tokenToMakeFreeCall
-                                  ,"tokenExpiryDateBlock":tokenExpiryDateBlock] as [String : Any]
-                promise.fulfill(properties)
-            }
-        }
+    private struct FreeCallStateRequestProperties {
+        let currentBlockNumber: UInt64
+        let signature: Data
+        let userId: String
+        let tokenforFreeCall: Data
+        let expiryBlock: UInt64
     }
 }

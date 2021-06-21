@@ -18,19 +18,14 @@ class PaidCallPaymentStrategy: BasePaidPaymentStrategy {
             return Promise { metadatapromise in
                 guard let currentSignedAmount = channel.state["currentSignedAmount"],
                       let nonce = channel.state["nonce"] else {
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
-                    metadatapromise.reject(genericError)
+                    metadatapromise.reject(SnetError.dataNotAvailable("Channel state information is not available"))
                     return }
                 
                 let amount = currentSignedAmount + self._getPrice()
                 
                 var signature = self._generateSignature(channelId: channel.channelId, nonce: nonce, amount: amount)
                 
-                let hexBytes = signature.hexToBytes()
-                signature = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
+                signature = signature.hextoBase64()
                 
                 let metadata = [["snet-payment-type": "escrow"],
                                 ["snet-payment-channel-id": channel.channelId.description],

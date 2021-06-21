@@ -31,8 +31,13 @@ extension String {
         return self.tohexString().hexToBytes()
     }
     
-    func utf8toBase64() -> Data {
-        guard let data = self.data(using: .utf8) else { preconditionFailure("Could not get data")}
-        return data.base64EncodedData()
+    func utf8toBase64() -> String {
+        let utf8Bytes = self.bytes
+        return Data(utf8Bytes).base64EncodedString(options: .init(rawValue: 0))
+    }
+    
+    func hextoBase64() -> String {
+        let hexBytes = self.hexToBytes()
+        return Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
     }
 }

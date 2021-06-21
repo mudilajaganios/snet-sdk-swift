@@ -53,7 +53,7 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
                         let genericError = NSError(
                             domain: "snet-sdk",
                             code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to get transaction hash"])
                         error.reject(genericError)
                     }
                 }
@@ -61,11 +61,12 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
                 return Promise<EthereumData>.value(transactionHash)
             }
         } catch {
+            print("Failed to sign the transaction.")
             return Promise { error in
                 let genericError = NSError(
                     domain: "snet-sdk",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid data"])
+                    userInfo: [NSLocalizedDescriptionKey: "Could not sign the transaction"])
                 error.reject(genericError)
             }
         }
@@ -77,8 +78,10 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
                 if let error = error as? Web3Response<EthereumTransactionReceiptObject?>.Error,
                    error.localizedDescription == Web3Response<EthereumTransactionReceiptObject?>.Error.emptyResponse.localizedDescription
                 {
+                    print("Waiting for the transaction status (Success/ Fail) for \(transactionHash.hex())")
                     return self._getTransactionStatus(transactionHash: transactionHash)
                 } else {
+                    print("Transaction \(transactionHash.hex()) failed with \(error.localizedDescription)")
                     return Promise { error in
                         let genericError = NSError(
                             domain: "snet-sdk",

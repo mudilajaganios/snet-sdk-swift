@@ -38,11 +38,7 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
         }.then { escrowbalance -> Promise<(BigUInt, BigUInt)> in
             guard let mpeBalance = escrowbalance.values.first as? BigUInt else {
                 return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
+                    error.reject(SnetError.dataNotAvailable("Failed to select channel. Escrow balance is not available"))
                 }
             }
             return self._serviceClient.defaultChannelExpiration().then { defaultExpiration -> Promise<(BigUInt, BigUInt)> in
@@ -53,39 +49,27 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
             
             if let selectedChannelId = _preselectedChannel,
                let selectedChannel = self._serviceClient.paymentChannels.first(where: { $0.channelId == selectedChannelId }) {
+                print("Info: Returning a preselected payment channel")
                 return Promise<PaymentChannel>.value(selectedChannel)
             }
             
-            let promise: Promise<PaymentChannel>?
-            
             if self._serviceClient.paymentChannels.count < 1 {
+                print("Info: No existing payment channels, Opening a new channel")
+                let promise: Promise<PaymentChannel>
                 if BigUInt.compare(serviceCallPrice, mpeBalance) == .orderedDescending {
                     promise = self._serviceClient.depositAndOpenChannel(amount: serviceCallPrice, expiry: extendedExpiry)
                 } else {
                     promise = self._serviceClient.openChannel(amount: serviceCallPrice, expiry: extendedExpiry)
                 }
                 
-                guard let promise = promise else {
-                    return Promise { error in
-                        let genericError = NSError(
-                            domain: "snet-sdk",
-                            code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                        error.reject(genericError)
-                    }
-                }
-                
                 return promise.then({ (channel) -> Promise<PaymentChannel> in
                     return self._getselectedPaymentChannel(selectedPaymentChannel: channel)
                 })
             } else {
+                print("Info: Selecting an available payment channel")
                 guard let paymentChannel = self._serviceClient.paymentChannels.first else {
                     return Promise { error in
-                        let genericError = NSError(
-                            domain: "snet-sdk",
-                            code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                        error.reject(genericError)
+                        error.reject(SnetError.dataNotAvailable("Couldn't fetch a payment channel"))
                     }
                 }
                 return self._getselectedPaymentChannel(selectedPaymentChannel: paymentChannel)
@@ -107,10 +91,13 @@ class BasePaidPaymentStrategy: PaymentChannelProtocol {
             var promise: Promise<EthereumData>?
             
             if hasSufficientFunds && !isValidChannel {
+                print("Info: Extending channel's expiry")
                 promise = selectedPaymentChannel.extend(expiry: extendedExpiry)
             } else if !hasSufficientFunds && isValidChannel {
+                print("Info: Adding funds to a channel")
                 promise = selectedPaymentChannel.addFunds(amount: extendChannelFund)
             } else if !hasSufficientFunds && !isValidChannel {
+                print("Info: Adding funds and extending the expiry of a channel")
                 promise = selectedPaymentChannel.extendAndAddFunds(expiry: extendedExpiry, amount: extendChannelFund)
             }
             

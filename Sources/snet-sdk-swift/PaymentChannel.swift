@@ -70,11 +70,7 @@ class PaymentChannel {
                   let expiry = latestChannelInfoOnBlockchain["expiration"] as? BigUInt,
                   let amountDeposited = latestChannelInfoOnBlockchain["value"] as? BigUInt else {
                 return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
+                    error.reject(SnetError.dataNotAvailable("Channel Info on Blockchain is incomplete/ invalid"))
                 }
             }
             

@@ -176,9 +176,9 @@ class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
     }
     
     func getFreeCallConfiguration() -> [String: Any]? {
-        guard let email = self._options["email"] as? String else { return nil }
-        guard let tokenMakeFreeCall = self._options["tokenToMakeFreeCall"] as? String else { return nil }
-        guard let tokenExpirationBlock = self._options["tokenExpirationBlock"] as? Int else { return nil }
+        guard let email = self._options["email"] as? String,
+              let tokenMakeFreeCall = self._options["tokenToMakeFreeCall"] as? String,
+              let tokenExpirationBlock = self._options["tokenExpirationBlock"] as? Int else { return nil }
         
         return [
             "email": email,
@@ -236,30 +236,22 @@ class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
         return firstly {
             self._web3.eth.getTransactionReceipt(transactionHash: transaction)
         }.then { (transactionReceipt) -> Promise<PaymentChannel> in
-            guard let reciept = transactionReceipt else {
+            guard let recieptBlockNumber = transactionReceipt?.blockNumber else {
                 return Promise { error in
-                    let genericError = NSError(
-                              domain: "snet-sdk",
-                              code: 0,
-                              userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
+                    error.reject(SnetError.failedEthereumCall)
                 }
             }
-            return self._getNewlyOpenedChannel(receipent: reciept)
+            return self._getNewlyOpenedChannel(receipent: recieptBlockNumber)
         }
     }
     
-    private func _getNewlyOpenedChannel(receipent: EthereumTransactionReceiptObject) -> Promise<PaymentChannel> {
+    private func _getNewlyOpenedChannel(receipent: EthereumQuantity) -> Promise<PaymentChannel> {
         return firstly {
-            self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: receipent.blockNumber)
+            self._mpeContract.getPastOpenChannels(account: self.account, service: self, startingBlockNumber: receipent)
         }.then { (openChannels) -> Promise<PaymentChannel> in
             return Promise { result in
                 guard let newlyOpenedChannel = openChannels.first else {
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    result.reject(genericError)
+                    result.reject(SnetError.dataNotAvailable("Could not find newly opened channel"))
                     return
                 }
                 result.fulfill(newlyOpenedChannel)
@@ -271,42 +263,28 @@ class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
         return firstly {
             self._channelStateRequestProperties(channelId: channelId)
         }.then { properties -> Promise<Escrow_ChannelStateRequest> in
-            guard let signatureBytes = properties["signatureBytes"] as? String,
-                  let currentBlock = properties["currentBlockNumber"] as? BigUInt
-                  else {
-                return Promise { error in
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                    error.reject(genericError)
-                }
-            }
-            
             var channelStateRequest = Escrow_ChannelStateRequest()
             channelStateRequest.channelID = Data(channelId.makeBytes())
-            channelStateRequest.signature = Data(hex: signatureBytes)
-            channelStateRequest.currentBlock = try! UInt64(currentBlock)
+            channelStateRequest.signature = Data(hex: properties.signature)
+            channelStateRequest.currentBlock = try! UInt64(properties.currentBlockNumber)
             
             return Promise<Escrow_ChannelStateRequest>.value(channelStateRequest)
         }
     }
     
-    private func _channelStateRequestProperties(channelId: BigUInt) -> Promise<[String: Any]> {
+    private func _channelStateRequestProperties(channelId: BigUInt) -> Promise<ChannelStateRequestProperties> {
         return firstly {
             self._web3.eth.blockNumber()
-        }.then { blockNumber -> Promise<[String: Any]> in
+        }.then { blockNumber -> Promise<ChannelStateRequestProperties> in
             let datahex = "__get_channel_state".tohexString() +
                 self._mpeContract.address!.hex(eip55: false).replacingOccurrences(of: "0x", with: "") +
                 String(channelId, radix: 16).paddingLeft(toLength: 64, withPad: "0") +
                 String(blockNumber.quantity, radix: 16).paddingLeft(toLength: 64, withPad: "0")
             
             let signature = self.account.sign(dataToSign: datahex)
-            var properties: [String: Any] = [:]
-            properties["currentBlockNumber"] = blockNumber.quantity
-            properties["signatureBytes"] = signature
+            let properties = ChannelStateRequestProperties(currentBlockNumber: blockNumber.quantity, signature: signature)
             
-            return Promise<[String: Any]>.value(properties)
+            return Promise<ChannelStateRequestProperties>.value(properties)
         }
     }
     
@@ -349,5 +327,10 @@ class ServiceClient: ServiceClientProtocol, ServiceClientStateProtocol {
                 options.fulfill(CallOptions(customMetadata: hpackHeaders))
             }
         }
+    }
+    
+    private struct ChannelStateRequestProperties {
+        let currentBlockNumber: BigUInt
+        let signature: String
     }
 }

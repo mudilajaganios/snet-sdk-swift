@@ -31,16 +31,10 @@ class PrepaidPaymentStrategy: BasePaidPaymentStrategy {
         }).then { (channel, token) -> Promise<[[String : Any]]> in
             return Promise { metadatapromise in
                 guard let nonce = channel.state["nonce"] else {
-                    let genericError = NSError(
-                        domain: "snet-sdk",
-                        code: 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to get organization metadata"])
-                    metadatapromise.reject(genericError)
+                    metadatapromise.reject(SnetError.dataNotAvailable("Channel state information is not available"))
                     return }
                 
-                let hexBytes = token.bytes
-                let token64String = Data(hexBytes).base64EncodedString(options: .init(rawValue: 0))
-                
+                let token64String = token.utf8toBase64()
                 let metadata = [["snet-payment-type": "prepaid-call"],
                                 ["snet-payment-channel-id": channel.channelId.description],
                                 ["snet-payment-channel-nonce": nonce.description],
