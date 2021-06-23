@@ -74,7 +74,7 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
     
     private func _getTransactionStatus(transactionHash: EthereumData) -> Promise<EthereumTransactionReceiptObject?> {
         return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
-            .recover { error -> Promise<EthereumTransactionReceiptObject?> in
+            .recover(on: nil, flags: .barrier, { error -> Promise<EthereumTransactionReceiptObject?> in
                 if let error = error as? Web3Response<EthereumTransactionReceiptObject?>.Error,
                    error.localizedDescription == Web3Response<EthereumTransactionReceiptObject?>.Error.emptyResponse.localizedDescription
                 {
@@ -90,7 +90,7 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
                         error.reject(genericError)
                     }
                 }
-            }
+            })
     }
     
     private func _setupAccount() {
