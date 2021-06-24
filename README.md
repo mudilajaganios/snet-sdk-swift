@@ -1,8 +1,6 @@
 # snet-sdk-swift
 SNET SDK in Swift
 
-SNET SDK in Swift
-
 snet-sdk-swift is a Swift library for interacting with AI services published on SingularityNET AI marketplace.
 
 ## Platforms support
