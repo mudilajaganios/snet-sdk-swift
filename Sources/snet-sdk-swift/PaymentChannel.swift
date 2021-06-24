@@ -10,16 +10,23 @@ import Web3
 import Web3ContractABI
 import Web3PromiseKit
 
+struct PaymentChannelState {
+    let nonce: BigUInt
+    let currentSignedAmount: BigUInt
+    let plannedAmount: BigUInt
+    let usedAmount: BigUInt
+}
+
 class PaymentChannel {
     
     private let _web3Instance: Web3
-    private let _channelId: String
-    private unowned let _mpeContract: MPEContract
-    private unowned let _account: Account
-    private unowned let _serviceClient: ServiceClient
+    private let _channelId: BigUInt
+    private let _mpeContract: MPEContractProtocol
+    private let _account: AccountProtocol
+    private let _serviceClient: ServiceClientStateProtocol
     private var _state: [String: BigUInt]
     
-    init(channelId: String, web3: Web3, account: Account, service: ServiceClient, mpeContract: MPEContract) {
+    init(channelId: BigUInt, web3: Web3, account: AccountProtocol, service: ServiceClientStateProtocol, mpeContract: MPEContractProtocol) {
         self._channelId = channelId
         self._web3Instance = web3
         self._account = account
@@ -29,7 +36,7 @@ class PaymentChannel {
                        "currentSignedAmount": 0]
     }
     
-    public var channelId: String {
+    public var channelId: BigUInt {
         return self._channelId
     }
     
@@ -54,33 +61,47 @@ class PaymentChannel {
     }
     
     public func syncState() -> Promise<PaymentChannel> {
-        let latestChannelInfoOnBlockchain = self._mpeContract.channels(channelId: self._channelId)
-        guard let currentState = self._currentChannelState() else {
-            return Promise { error in
-                let genericError = NSError(
-                    domain: "snet-sdk",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Unknown error"])
-                error.reject(genericError)
+        let channelInfo = self._mpeContract.channels(channelId: self._channelId)
+        let currentStatePromise = self._currentChannelState()
+        return firstly {
+            when(fulfilled: channelInfo, currentStatePromise)
+        }.then { (latestChannelInfoOnBlockchain, currentState) -> Promise<PaymentChannel> in
+            guard let nonce = latestChannelInfoOnBlockchain["nonce"] as? BigUInt,
+                  let expiry = latestChannelInfoOnBlockchain["expiration"] as? BigUInt,
+                  let amountDeposited = latestChannelInfoOnBlockchain["value"] as? BigUInt else {
+                return Promise { error in
+                    error.reject(SnetError.dataNotAvailable("Channel Info on Blockchain is incomplete/ invalid"))
+                }
             }
-        }
-        self._state["nonce"] = currentState.nonce
-        self._state["currentNonce"] = currentState.nonce
-        self._state["expiry"] = 0
-        self._state["amountDeposited"] = 0
-        self._state["currentSignedAmount"] = 0
-        self._state["availableAmount"] = 0
-        
-        return Promise { state in
-            state.fulfill(self)
+            
+            let availableAmount = amountDeposited - currentState.currentSignedAmount
+            self._state["nonce"] = nonce
+            self._state["currentNonce"] = currentState.nonce
+            self._state["expiry"] = expiry
+            self._state["amountDeposited"] = amountDeposited
+            self._state["currentSignedAmount"] = currentState.currentSignedAmount
+            self._state["availableAmount"] = availableAmount
+            self._state["plannedAmount"] = currentState.plannedAmount
+            self._state["usedAmount"] = currentState.usedAmount
+            
+            return Promise { state in
+                state.fulfill(self)
+            }
         }
     }
     
-    fileprivate func _currentChannelState() -> (currentSignedAmount: BigUInt, nonce: BigUInt)? {
-        guard let channelStateReply = self._serviceClient.getChannelState(channelId: self._channelId) else { return nil }
-        let nonce = channelStateReply.currentNonce
-        let currentSignedAmount = channelStateReply.currentSignedAmount
-        let channelState = (currentSignedAmount: BigUInt(currentSignedAmount), nonce: BigUInt(nonce))
-        return channelState
+    fileprivate func _currentChannelState() -> Promise<PaymentChannelState> {
+        return firstly {
+            self._serviceClient.getChannelState(channelId: self._channelId)
+        }.then { channelStateReply -> Promise<PaymentChannelState> in
+            let nonce = channelStateReply.currentNonce
+            let currentSignedAmount = channelStateReply.currentSignedAmount
+            let channelState = PaymentChannelState(nonce: BigUInt(nonce),
+                                                   currentSignedAmount: BigUInt(currentSignedAmount),
+                                                   plannedAmount: try! BigUInt(channelStateReply.plannedAmount),
+                                                   usedAmount: try! BigUInt(channelStateReply.usedAmount))
+            
+            return Promise<PaymentChannelState>.value(channelState)
+        }
     }
 }
