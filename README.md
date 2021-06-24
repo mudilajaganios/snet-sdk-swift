@@ -39,7 +39,7 @@ The SDK choses a default  ```PaymentChannelManagementStrategy```  which is the s
 
 ## Development
 
-This library is built on PromiseKit and GRPC libraries. In order to create Service client and interact with service client methods, you need to import PromiseKit module in your Swift class file.
+This library is built on PromiseKit and GRPC libraries. In order to create Service client and interact with service client methods, you need to import PromiseKit & GRPC modules in your Swift class file.
 
 ```
 import snet_sdk_swift
@@ -59,10 +59,14 @@ let config = SDKConfig(web3Provider: "https://<mainnet>.infura.io/v3/<Project_ID
 
 Secondly, create instance for ```SnetSDK``` as below.
 
+### SnetSDK Instance
+
 ```
 let _snetSDK: SnetSDK = try SnetSDK(config: config)
 ```
 You can provide free call configuration to avail free calls for your subscription. Please visit AI marketplace for the free call configuration.
+
+### Freecall configuration
 
 ```
 let _freeCallOptions: [String: Any] = [
@@ -74,7 +78,7 @@ let _freeCallOptions: [String: Any] = [
 ] as [String : Any]
 ```
 
-Consuming AI service as below:
+### Interacting with AI Service
 
 ```
 firstly {
