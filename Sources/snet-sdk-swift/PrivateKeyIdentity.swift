@@ -47,6 +47,7 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
             }.then { transactionHash -> Promise<EthereumTransactionReceiptObject?> in
                 return self._getTransactionStatus(transactionHash: transactionHash)
             }.then { receiptObject -> Promise<EthereumData> in
+                print("Info: Transaction succeeded")
                 guard let status = receiptObject?.status?.quantity, status == 1,
                       let transactionHash = receiptObject?.transactionHash else {
                     return Promise { error in
@@ -57,11 +58,10 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
                         error.reject(genericError)
                     }
                 }
-
                 return Promise<EthereumData>.value(transactionHash)
             }
         } catch {
-            print("Failed to sign the transaction.")
+            print("Error: Failed to sign the transaction.")
             return Promise { error in
                 let genericError = NSError(
                     domain: "snet-sdk",

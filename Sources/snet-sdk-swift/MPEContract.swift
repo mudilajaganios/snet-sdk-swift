@@ -189,7 +189,7 @@ class MPEContract: MPEContractProtocol {
     func getPastOpenChannels(account: AccountProtocol, service: ServiceClientStateProtocol, startingBlockNumber: EthereumQuantity? = nil) -> Promise<[PaymentChannel]> {
         return firstly {
             self._deploymentBlockNumber(startingBlockNumber: startingBlockNumber)
-        }.then({ fromBlock -> Promise<BigUInt> in
+        }.then({ fromBlock -> Promise<BigInt> in
             guard let pastEvent = self._mpeContract.events.first(where: { $0.name == "ChannelOpen" }) else {
                 return Promise { error in
                     error.reject(SnetError.dataNotAvailable("ChannelOpen event is not emitted in MPE Contract"))
@@ -219,21 +219,24 @@ class MPEContract: MPEContractProtocol {
                                                                   "0x" + groupId.toHexString()])
             
             return self._web3Instance.eth.getPastEvents(params: pastEventParams)
-                .then { pastEvents -> Promise<BigUInt> in
+                .then { pastEvents -> Promise<BigInt> in
+                    if pastEvents.count <= 0 {
+                        return Promise<BigInt>.value(-1)
+                    }
                     guard let eventData = try? ABI.decodeLog(event: pastEvent, from: pastEvents[0]),
                           let channelId = eventData["channelId"] as? BigUInt else {
                         return Promise { error in
                             error.reject(SnetError.dataNotAvailable("Missing ChannelId Information"))
                         }
                     }
-                    return Promise<BigUInt>.value(channelId)
+                    return Promise<BigInt>.value(BigInt(channelId))
                 }
         }).then { (openChannelId) -> Promise<[PaymentChannel]> in
             if openChannelId < 0 {
                 return Promise<[PaymentChannel]>.value([])
             }
             return Promise { paymentchannels in
-                let channels: [PaymentChannel] =  [PaymentChannel(channelId: openChannelId,
+                let channels: [PaymentChannel] =  [PaymentChannel(channelId: BigUInt(openChannelId),
                                           web3: self._web3Instance,
                                           account: account,
                                           service: service,
