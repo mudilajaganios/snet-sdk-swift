@@ -17,6 +17,22 @@ This SDK is under active development and not ready for production use yet. If yo
 ### Pre-requisites
 Xcode >= 12.0 or Swift >= 5.3.
 
+You need to integrate AI service proto files in your project. Please check the developer link for the proto files from Service details page.
+Download proto files and generate stubs in Swift language using ```protoc-gen-grpc-swift``` plugin
+
+```
+$ protoc <Your project directory>/service.proto \
+    --proto_path=<Your project directory>/Model \
+    --plugin=./.build/debug/protoc-gen-swift \
+    --swift_opt=Visibility=Public \
+    --swift_out=<Your project directory>/Model \
+    --plugin=./.build/debug/protoc-gen-grpc-swift \
+    --grpc-swift_opt=Visibility=Public \
+    --grpc-swift_out=<Your project directory>/Model
+```
+
+Stubs ```service.grpc.swift``` and ```service.pb.swift``` will be created in the output directory and add them to your project directory.
+
 ### Swift Package Manager
 
 snet-sdk-swift is compatible with Swift Package Manager v5 (Swift 5 and above). Simply add it to the project dependencies.
