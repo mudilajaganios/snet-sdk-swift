@@ -72,25 +72,30 @@ class PrivateKeyIdentity: PrivateKeyIdentityProtocol {
         }
     }
     
-    private func _getTransactionStatus(transactionHash: EthereumData) -> Promise<EthereumTransactionReceiptObject?> {
-        return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
-            .recover(on: nil, flags: .barrier, { error -> Promise<EthereumTransactionReceiptObject?> in
-                if let error = error as? Web3Response<EthereumTransactionReceiptObject?>.Error,
-                   error.localizedDescription == Web3Response<EthereumTransactionReceiptObject?>.Error.emptyResponse.localizedDescription
-                {
-                    print("Waiting for the transaction status (Success/ Fail) for \(transactionHash.hex())")
-                    return self._getTransactionStatus(transactionHash: transactionHash)
-                } else {
-                    print("Transaction \(transactionHash.hex()) failed with \(error.localizedDescription)")
-                    return Promise { error in
-                        let genericError = NSError(
-                            domain: "snet-sdk",
-                            code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: "Transaction failed"])
-                        error.reject(genericError)
+    private func _getTransactionStatus(transactionHash: EthereumData, tryCount: Int = 0) -> Promise<EthereumTransactionReceiptObject?> {
+        //Waiting for 30 seconds to get the status
+        let waitTime: TimeInterval = tryCount > 0 ? 30 : 0
+        
+        return after(seconds: waitTime).then { _ -> Promise<EthereumTransactionReceiptObject?> in
+            return self._web3.eth.getTransactionReceipt(transactionHash: transactionHash)
+                .recover(on: nil, flags: .barrier, { error -> Promise<EthereumTransactionReceiptObject?> in
+                    if let error = error as? Web3Response<EthereumTransactionReceiptObject?>.Error,
+                       error.localizedDescription == Web3Response<EthereumTransactionReceiptObject?>.Error.emptyResponse.localizedDescription
+                    {
+                        print("Waiting for the transaction status (Success/ Fail) for \(transactionHash.hex())")
+                        return self._getTransactionStatus(transactionHash: transactionHash, tryCount: tryCount + 1)
+                    } else {
+                        print("Transaction \(transactionHash.hex()) failed with \(error.localizedDescription)")
+                        return Promise { error in
+                            let genericError = NSError(
+                                domain: "snet-sdk",
+                                code: 0,
+                                userInfo: [NSLocalizedDescriptionKey: "Transaction failed"])
+                            error.reject(genericError)
+                        }
                     }
-                }
-            })
+                })
+        }
     }
     
     private func _setupAccount() {
